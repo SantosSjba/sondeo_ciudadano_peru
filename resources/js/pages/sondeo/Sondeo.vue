@@ -92,6 +92,8 @@ function showAlertBanner(type: 'error' | 'warning' | 'info', title: string, mess
 const results = ref<{ candidates: CandidateBar[]; total: number }>({ candidates: [], total: 0 });
 const resultsLoading = ref(true);
 const updatedAt = ref('');
+/** Usuarios con la página abierta (presencia vía polling ~10 s) */
+const onlineCount = ref(0);
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 /* ── helpers ─────────────────────────────────────────────────────── */
@@ -135,6 +137,7 @@ async function fetchResults() {
         const data = await r.json();
         results.value = { candidates: data.candidates ?? [], total: data.total ?? 0 };
         updatedAt.value = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        onlineCount.value = Math.max(0, Number(data.online_count) || 0);
 
         // Misma huella que al votar: restaurar “ya participé” tras F5 o volver más tarde
         const slug = props.campaign.slug;
@@ -438,9 +441,18 @@ onUnmounted(() => {
                             {{ resultsLoading ? '…' : results.total.toLocaleString('es-PE') }}
                             <span class="text-base font-medium text-zinc-500"> participantes</span>
                         </p>
-                        <p class="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-400">
-                            <span class="inline-block size-2 animate-pulse rounded-full bg-emerald-500" aria-hidden="true" />
-                            <span>En tiempo real · {{ updatedAt || 'cargando…' }}</span>
+                        <p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="inline-block size-2 animate-pulse rounded-full bg-emerald-500" aria-hidden="true" />
+                                <span>En tiempo real · {{ updatedAt || 'cargando…' }}</span>
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 font-medium text-sky-800 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-200" title="Quienes tienen esta página abierta ahora (actualización cada pocos segundos)">
+                                <svg class="size-3.5 shrink-0 text-sky-600 dark:text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                                </svg>
+                                <span class="tabular-nums">{{ resultsLoading ? '…' : onlineCount.toLocaleString('es-PE') }}</span>
+                                <span class="text-[10px] font-normal opacity-90">en línea</span>
+                            </span>
                         </p>
                     </div>
 
