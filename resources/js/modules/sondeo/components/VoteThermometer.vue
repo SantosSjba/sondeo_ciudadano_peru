@@ -50,11 +50,16 @@ const medals = ['🥇', '🥈', '🥉'];
 <template>
     <section :aria-busy="loading">
         <!-- Cabecera -->
-        <div class="mb-4 flex items-center justify-between gap-2">
-            <h2 class="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                Termómetro ciudadano
-            </h2>
-            <span class="flex items-center gap-1.5 text-[11px] text-zinc-400 dark:text-zinc-500" aria-live="polite">
+        <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+            <div>
+                <h2 class="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                    Termómetro ciudadano
+                </h2>
+                <p class="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
+                    Ranking por votos · 🥇 🥈 🥉 primeros tres
+                </p>
+            </div>
+            <span class="flex shrink-0 items-center gap-1.5 text-[11px] text-zinc-400 dark:text-zinc-500 sm:pt-5" aria-live="polite">
                 <span class="inline-block size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
                 <span v-if="loading" class="animate-pulse">actualizando…</span>
                 <span v-else>{{ total.toLocaleString('es-PE') }} votos</span>

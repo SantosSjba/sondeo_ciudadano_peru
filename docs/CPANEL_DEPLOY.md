@@ -78,6 +78,10 @@ Tras desplegar:
 
 Favicon: bandera de Perú en `/favicon.svg`.
 
+**Votar en producción:** `APP_URL` debe ser exactamente el dominio desde el que entra la gente (ej. `https://votolibre.factosysperu.com`). Si usas `www` y `APP_URL` no tiene `www` (o al revés), el middleware de voto puede rechazar el POST. En local (`APP_ENV=local`) ese control no se aplica.
+
+**Termómetro:** el listado se ordena por **número de votos** (mayor arriba). Las medallas son el top 3 real.
+
 ## 6. Base de datos remota
 
 Si MySQL está en otro host, en `.env`: `DB_HOST=...` y en el panel MySQL permitir el usuario desde el servidor web si hace falta.

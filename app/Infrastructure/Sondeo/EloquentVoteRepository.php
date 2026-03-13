@@ -96,8 +96,26 @@ final class EloquentVoteRepository implements VoteRepositoryInterface
                 'party_logo_url' => $c->party_logo_url,
                 'votes' => $votes,
                 'percent' => $percent,
+                '_sort' => (int) $c->sort_order,
             ];
         }
+
+        // Termómetro = ranking real: más votos arriba (🥇🥈🥉 coherentes)
+        usort($out, function (array $a, array $b): int {
+            if ($a['votes'] !== $b['votes']) {
+                return $b['votes'] <=> $a['votes'];
+            }
+            if ($a['_sort'] !== $b['_sort']) {
+                return $a['_sort'] <=> $b['_sort'];
+            }
+
+            return $a['id'] <=> $b['id'];
+        });
+
+        foreach ($out as &$row) {
+            unset($row['_sort']);
+        }
+        unset($row);
 
         return $out;
     }

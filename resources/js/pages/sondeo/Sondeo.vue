@@ -29,6 +29,7 @@ const props = defineProps<{
 const pageLoadAt = ref(Date.now());
 const selectedId = ref<number | null>(null);
 const honeypot = ref('');
+const honeypot2 = ref('');
 const submitting = ref(false);
 const votedOk = ref(false);
 const lastSubmitAt = ref(0);
@@ -118,6 +119,7 @@ async function submitVote() {
                 candidate_id: selectedId.value,
                 campaign_slug: props.campaign.slug,
                 company: honeypot.value,
+                website: honeypot2.value,
                 client_elapsed_ms: elapsed,
             }),
         });
@@ -135,6 +137,8 @@ async function submitVote() {
                 change_too_soon: 'Espera un momento',
                 already_voted: 'Participación registrada',
                 too_fast: 'Demasiado rápido',
+                bot_ua: 'Acceso no válido',
+                bot_origin: 'Acceso no válido',
                 invalid: 'Error al registrar',
                 invalid_candidate: 'Candidato no válido',
                 error: 'No se pudo completar',
@@ -163,7 +167,10 @@ function errorMessageForCode(code: string | null): string {
         case 'legacy_no_change':
             return 'Tu participación se registró con una versión anterior del sitio y no permite cambiar el voto desde aquí. Gracias por haber participado.';
         case 'too_fast':
-            return 'Espera unos segundos en la página antes de enviar (protección anti-bots).';
+            return 'Espera al menos unos segundos en la página antes de enviar (protección anti-bots). En el primer voto suele pedir ~4 s.';
+        case 'bot_ua':
+        case 'bot_origin':
+            return 'No se pudo validar el envío desde este entorno. Abre el sitio en el navegador (Chrome, Safari, etc.) y vuelve a intentar.';
         case 'invalid':
         case 'invalid_candidate':
             return 'No se pudo registrar tu voto. Recarga la página e intenta de nuevo.';
@@ -547,6 +554,7 @@ onUnmounted(() => {
                                 <!-- Honeypot -->
                                 <div class="absolute -left-[9999px] h-0 w-0 overflow-hidden" aria-hidden="true">
                                     <input v-model="honeypot" type="text" name="company" tabindex="-1" autocomplete="off" />
+                                    <input v-model="honeypot2" type="text" name="website" tabindex="-1" autocomplete="off" />
                                 </div>
 
                                 <fieldset :disabled="submitting" class="grid grid-cols-1 gap-2 xs:grid-cols-2 sm:grid-cols-2">

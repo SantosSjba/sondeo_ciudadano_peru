@@ -18,7 +18,8 @@ final class SondeoVoteController extends Controller
         $validated = $request->validate([
             'candidate_id' => ['required', 'integer', 'min:1'],
             'campaign_slug' => ['required', 'string', 'max:128'],
-            'company' => ['nullable', 'string'], // honeypot (oculto); bots lo rellenan
+            'company' => ['nullable', 'string'],
+            'website' => ['nullable', 'string'],
             'client_elapsed_ms' => ['required', 'integer', 'min:0', 'max:600000'],
         ]);
 
@@ -36,6 +37,7 @@ final class SondeoVoteController extends Controller
             (int) $validated['candidate_id'],
             $hash,
             isset($validated['company']) ? trim((string) $validated['company']) : null,
+            isset($validated['website']) ? trim((string) $validated['website']) : null,
             (int) $validated['client_elapsed_ms'],
         );
 
@@ -46,7 +48,7 @@ final class SondeoVoteController extends Controller
             $status = match ($code) {
                 'already_voted', 'legacy_no_change' => 409,
                 'change_too_soon' => 429,
-                'too_fast', 'invalid', 'invalid_candidate' => 422,
+                'too_fast', 'invalid', 'invalid_candidate', 'bot_ua', 'bot_origin' => 422,
                 default => 422,
             };
 

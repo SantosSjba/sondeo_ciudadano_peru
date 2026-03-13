@@ -21,9 +21,8 @@ final class CastVoteHandler
         if ($cmd->honeypot !== null && $cmd->honeypot !== '') {
             throw new RuntimeException('invalid');
         }
-
-        if ($cmd->clientElapsedMs < 2000) {
-            throw new RuntimeException('too_fast');
+        if ($cmd->honeypot2 !== null && $cmd->honeypot2 !== '') {
+            throw new RuntimeException('invalid');
         }
 
         $candidate = SondeoCandidate::query()
@@ -36,6 +35,11 @@ final class CastVoteHandler
         }
 
         $existing = $this->votes->findVoteRowByFingerprint($cmd->campaignId, $cmd->fingerprintHash);
+
+        $minMs = $existing !== null ? 2000 : 3500;
+        if ($cmd->clientElapsedMs < $minMs) {
+            throw new RuntimeException('too_fast');
+        }
 
         if ($existing !== null) {
             if ((int) $existing->candidate_id === $cmd->candidateId) {

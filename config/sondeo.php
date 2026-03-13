@@ -13,6 +13,11 @@ return [
     'vote_throttle_per_minute' => (int) env('SONDEO_VOTE_THROTTLE_PER_MINUTE', 5),
 
     /*
+    | Límite de consultas al termómetro por IP y minuto (anti-scraping; la app hace ~6/min).
+    */
+    'results_throttle_per_minute' => (int) env('SONDEO_RESULTS_THROTTLE_PER_MINUTE', 90),
+
+    /*
     | Segundos mínimos entre cambios de voto (misma huella). Anti-bots / flood.
     */
     'vote_change_cooldown_seconds' => (int) env('SONDEO_VOTE_CHANGE_COOLDOWN_SECONDS', 45),

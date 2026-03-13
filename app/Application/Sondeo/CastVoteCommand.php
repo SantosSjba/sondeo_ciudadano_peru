@@ -9,6 +9,7 @@ final readonly class CastVoteCommand
         public int $candidateId,
         public string $fingerprintHash,
         public ?string $honeypot,
+        public ?string $honeypot2,
         public int $clientElapsedMs,
     ) {}
 }

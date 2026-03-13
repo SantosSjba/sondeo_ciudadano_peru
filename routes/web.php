@@ -13,10 +13,15 @@ use Laravel\Fortify\Features;
 Route::get('/', SondeoPageController::class)->name('sondeo.home');
 Route::get('/sitemap.xml', SondeoSitemapController::class)->name('sondeo.sitemap');
 
-Route::get('/api/sondeo/results', SondeoResultsController::class)->name('sondeo.results');
+Route::get('/api/sondeo/results', SondeoResultsController::class)
+    ->middleware('throttle:'.(int) config('sondeo.results_throttle_per_minute', 90).',1')
+    ->name('sondeo.results');
 
 Route::post('/api/sondeo/vote', SondeoVoteController::class)
-    ->middleware('throttle:'.config('sondeo.vote_throttle_per_minute', 5).',1')
+    ->middleware([
+        'throttle:'.config('sondeo.vote_throttle_per_minute', 5).',1',
+        'sondeo.vote.security',
+    ])
     ->name('sondeo.vote');
 
 Route::inertia('/welcome', 'Welcome', [
