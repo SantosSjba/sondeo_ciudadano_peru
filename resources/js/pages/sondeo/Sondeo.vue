@@ -16,6 +16,13 @@ type Candidate = {
 const props = defineProps<{
     campaign: { id: number; slug: string; title: string; description: string | null } | null;
     candidates: Candidate[];
+    seo: {
+        siteName: string;
+        title: string;
+        description: string;
+        canonical: string;
+        jsonLd: string;
+    };
 }>();
 
 /* ── estado ─────────────────────────────────────────────────────── */
@@ -202,7 +209,23 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <Head :title="campaign?.title ?? 'Sondeo ciudadano Perú'" />
+    <Head :title="props.seo.title">
+        <meta name="description" :content="props.seo.description" />
+        <meta name="keywords" content="sondeo Perú, intención de voto, elecciones, candidatos presidenciales, termómetro ciudadano, participación anónima, Voto Libre" />
+        <link rel="canonical" :href="props.seo.canonical" />
+
+        <meta property="og:title" :content="props.seo.title" />
+        <meta property="og:description" :content="props.seo.description" />
+        <meta property="og:url" :content="props.seo.canonical" />
+        <meta property="og:locale" content="es_PE" />
+        <meta property="og:image" :content="`${props.seo.canonical.replace(/\/$/, '')}/favicon.svg`" />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" :content="props.seo.title" />
+        <meta name="twitter:description" :content="props.seo.description" />
+
+        <script type="application/ld+json">{{ props.seo.jsonLd }}</script>
+    </Head>
 
     <!-- Alerta global: siempre visible (encima del modal) -->
     <Teleport to="body">

@@ -63,6 +63,21 @@ Causas frecuentes:
 - Elegir **PHP 8.2+** para Laravel 11/12.
 - Extensiones habituales: `openssl`, `pdo_mysql`, `mbstring`, `tokenizer`, `xml`, `ctype`, `json`, `fileinfo`, `bcmath`.
 
-## 5. Base de datos remota
+## 5. SEO e indexación (Google)
+
+En `.env` de producción:
+
+- `APP_URL=https://votolibre.factosysperu.com` (sin barra final o con barra, Laravel lo normaliza en enlaces).
+- `APP_NAME=Voto Libre` (o el nombre que quieras en título por defecto).
+
+Tras desplegar:
+
+1. Abre `https://votolibre.factosysperu.com/robots.txt` — debe listar el Sitemap.
+2. Abre `https://votolibre.factosysperu.com/sitemap.xml` — debe mostrar la URL de la portada.
+3. **Google Search Console** → Añadir propiedad (prefijo de URL) → Verificación → **Sitemaps** → enviar `https://votolibre.factosysperu.com/sitemap.xml`.
+
+Favicon: bandera de Perú en `/favicon.svg`.
+
+## 6. Base de datos remota
 
 Si MySQL está en otro host, en `.env`: `DB_HOST=...` y en el panel MySQL permitir el usuario desde el servidor web si hace falta.

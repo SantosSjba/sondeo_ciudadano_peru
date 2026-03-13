@@ -22,4 +22,17 @@ return [
     */
     'default_campaign_slug' => env('SONDEO_DEFAULT_CAMPAIGN_SLUG', 'presidencial-peru'),
 
+    /*
+    | SEO / Google: descripción por defecto (meta description, Open Graph).
+    | APP_URL debe ser https://votolibre.factosysperu.com en producción.
+    */
+    'seo_site_name' => env('SONDEO_SEO_SITE_NAME', 'Voto Libre'),
+    'seo_description' => env(
+        'SONDEO_SEO_DESCRIPTION',
+        'Sondeo ciudadano en línea: participa de forma anónima y consulta el termómetro de intención de voto presidencial en el Perú. Resultados en tiempo real. No oficial, sin validez electoral.'
+    ),
+    'seo_keywords' => env(
+        'SONDEO_SEO_KEYWORDS',
+        'sondeo Perú, intención de voto, elecciones Perú, candidatos presidenciales, termómetro ciudadano, participación ciudadana, factosys'
+    ),
 ];

@@ -1,2 +1,12 @@
+# https://votolibre.factosysperu.com — Sondeo ciudadano Perú
 User-agent: *
-Disallow:
+Allow: /
+
+# No indexar áreas de cuenta (si existen)
+Disallow: /dashboard
+Disallow: /login
+Disallow: /register
+Disallow: /settings
+Disallow: /api/
+
+Sitemap: https://votolibre.factosysperu.com/sitemap.xml

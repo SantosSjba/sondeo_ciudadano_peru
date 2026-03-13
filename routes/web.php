@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Sondeo\SondeoPageController;
 use App\Http\Controllers\Sondeo\SondeoResultsController;
+use App\Http\Controllers\Sondeo\SondeoSitemapController;
 use App\Http\Controllers\Sondeo\SondeoVoteController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
@@ -10,6 +11,7 @@ use Laravel\Fortify\Features;
 | Sondeo ciudadano: portada pública. Auth opcional en /welcome y dashboard.
 */
 Route::get('/', SondeoPageController::class)->name('sondeo.home');
+Route::get('/sitemap.xml', SondeoSitemapController::class)->name('sondeo.sitemap');
 
 Route::get('/api/sondeo/results', SondeoResultsController::class)->name('sondeo.results');
 
