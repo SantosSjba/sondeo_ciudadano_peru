@@ -97,19 +97,19 @@ const medals = ['🥇', '🥈', '🥉'];
                         v-if="c.photo_url"
                         :src="c.photo_url"
                         :alt="c.name"
-                        class="h-8 w-8 rounded-full border-2 object-cover object-top"
+                        class="h-11 w-11 rounded-full border-2 object-cover object-top sm:h-10 sm:w-10"
                         :class="i < 3 ? 'border-zinc-300 dark:border-zinc-500' : 'border-zinc-200 dark:border-zinc-600'"
                         loading="lazy"
                     />
                     <span
                         v-else
-                        class="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-zinc-100 text-[9px] font-bold text-zinc-500 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-300"
+                        class="flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-zinc-100 text-[10px] font-bold text-zinc-500 sm:h-10 sm:w-10 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-300"
                     >{{ c.name[0] }}</span>
                     <img
                         v-if="c.party_logo_url"
                         :src="c.party_logo_url"
                         alt=""
-                        class="absolute -right-0.5 -bottom-0.5 h-4 w-4 rounded-full border-[1.5px] border-white bg-white object-contain dark:border-zinc-800"
+                        class="absolute -right-0.5 -bottom-0.5 h-5 w-5 rounded-full border-[1.5px] border-white bg-white object-contain dark:border-zinc-800"
                         loading="lazy"
                     />
                     <!-- medalla top 3 -->

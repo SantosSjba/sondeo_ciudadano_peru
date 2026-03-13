@@ -42,6 +42,27 @@ const lastSubmitAt = ref(0);
 const errorCode = ref<string | null>(null);
 const showModal = ref(false);
 const candidateSearch = ref('');
+/** Relleno inferior en móvil cuando el teclado tapa la lista */
+const modalKeyboardPad = ref(0);
+let vvResizeHandler: (() => void) | null = null;
+
+function updateModalKeyboardPad() {
+    if (typeof window === 'undefined' || !window.visualViewport) {
+        modalKeyboardPad.value = 0;
+        return;
+    }
+    const vv = window.visualViewport;
+    const hidden = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    modalKeyboardPad.value = Math.min(hidden + 24, 320);
+}
+
+function onSearchFocus(e: Event) {
+    const el = e.target as HTMLElement;
+    setTimeout(() => {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        updateModalKeyboardPad();
+    }, 280);
+}
 
 /** Alerta global (toast) para que el ciudadano siempre vea el mensaje */
 const alertBanner = ref<{
@@ -84,7 +105,22 @@ function csrf() {
 /* Bloquea scroll del body cuando el modal está abierto */
 watch(showModal, (v) => {
     document.body.style.overflow = v ? 'hidden' : '';
-    if (v) candidateSearch.value = '';
+    if (v) {
+        candidateSearch.value = '';
+        modalKeyboardPad.value = 0;
+        if (typeof window !== 'undefined' && window.visualViewport) {
+            vvResizeHandler = () => updateModalKeyboardPad();
+            window.visualViewport.addEventListener('resize', vvResizeHandler);
+            window.visualViewport.addEventListener('scroll', vvResizeHandler);
+        }
+    } else {
+        modalKeyboardPad.value = 0;
+        if (vvResizeHandler && typeof window !== 'undefined' && window.visualViewport) {
+            window.visualViewport.removeEventListener('resize', vvResizeHandler);
+            window.visualViewport.removeEventListener('scroll', vvResizeHandler);
+            vvResizeHandler = null;
+        }
+    }
 });
 
 /* ── API ─────────────────────────────────────────────────────────── */
@@ -247,18 +283,29 @@ const filteredCandidates = computed(() => {
     });
 });
 
+function injectJsonLd() {
+    document.getElementById('sondeo-schema-jsonld')?.remove();
+    if (!props.seo?.jsonLd) return;
+    const el = document.createElement('script');
+    el.id = 'sondeo-schema-jsonld';
+    el.type = 'application/ld+json';
+    el.textContent = props.seo.jsonLd;
+    document.head.appendChild(el);
+}
+
 onMounted(() => {
     fetchResults();
     pollTimer = setInterval(fetchResults, 10000);
     interactTracker.listen();
-    // Calcular la huella del navegador en segundo plano (no bloquea UI)
     buildBrowserFingerprint().then(fp => { browserFp.value = fp; }).catch(() => {});
+    injectJsonLd();
 });
 onUnmounted(() => {
     if (pollTimer) clearInterval(pollTimer);
     if (alertAutoClose) clearTimeout(alertAutoClose);
     interactTracker.destroy();
     document.body.style.overflow = '';
+    document.getElementById('sondeo-schema-jsonld')?.remove();
 });
 </script>
 
@@ -277,8 +324,6 @@ onUnmounted(() => {
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" :content="props.seo.title" />
         <meta name="twitter:description" :content="props.seo.description" />
-
-        <script type="application/ld+json">{{ props.seo.jsonLd }}</script>
     </Head>
 
     <!-- Alerta global: siempre visible (encima del modal) -->
@@ -420,6 +465,18 @@ onUnmounted(() => {
                     </div>
                 </div>
 
+                <!-- ── Ética ciudadana (transparencia) ───────────────── -->
+                <div
+                    class="mb-4 rounded-xl border border-emerald-200/90 bg-emerald-50/95 px-3 py-3 text-[11px] leading-relaxed text-emerald-950 shadow-sm sm:px-4 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100"
+                >
+                    <p class="font-bold text-emerald-900 dark:text-emerald-100">Compromiso por la transparencia</p>
+                    <p class="mt-1 text-emerald-900/95 dark:text-emerald-200/95">
+                        Te pedimos <strong>no repetir votos</strong> desde varios dispositivos ni intentar falsear el sondeo.
+                        <strong>Una sola participación por dispositivo/red</strong>: si ya votaste, el sistema <strong>bloquea nuevos intentos</strong> (solo podrás <em>cambiar</em> tu opción desde el mismo dispositivo, con límites de tiempo).
+                        Así el termómetro refleja mejor la opinión honesta de quien participa. Gracias.
+                    </p>
+                </div>
+
                 <!-- ── Termómetro ──────────────────────────────────────── -->
                 <section
                     class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6 dark:border-zinc-700 dark:bg-zinc-900"
@@ -438,6 +495,7 @@ onUnmounted(() => {
                         <p>
                             Este sitio es un <strong class="text-zinc-700 dark:text-zinc-300">sondeo ciudadano en línea</strong>:
                             participación voluntaria, resultados no oficiales y sin validez electoral. Datos mostrados en totales anónimos.
+                            <strong class="text-zinc-600 dark:text-zinc-400">Un voto por dispositivo</strong>; intentos repetidos quedan bloqueados para cuidar la transparencia.
                         </p>
                         <p>Imágenes de candidatos y logos usados como referencia visual informativa; no vinculado a organismos electorales ni a campañas.</p>
                         <p>
@@ -534,11 +592,11 @@ onUnmounted(() => {
                             role="dialog"
                             aria-modal="true"
                             aria-labelledby="modal-title"
-                            class="relative z-10 flex max-h-[92dvh] w-full flex-col rounded-t-3xl border border-zinc-200 bg-white shadow-2xl sm:max-h-[90vh] sm:max-w-2xl sm:rounded-2xl dark:border-zinc-700 dark:bg-zinc-900"
+                            class="relative z-10 flex max-h-[100dvh] w-full flex-col rounded-t-3xl border border-zinc-200 bg-white shadow-2xl sm:max-h-[90vh] sm:max-w-2xl sm:rounded-2xl dark:border-zinc-700 dark:bg-zinc-900"
                             @click.stop
                         >
                             <!-- Handle mobile -->
-                            <div class="mx-auto mt-2.5 mb-1 h-1 w-10 rounded-full bg-zinc-300 sm:hidden dark:bg-zinc-600" aria-hidden="true" />
+                            <div class="mx-auto mt-2.5 mb-1 h-1 w-10 shrink-0 rounded-full bg-zinc-300 sm:hidden dark:bg-zinc-600" aria-hidden="true" />
 
                             <!-- Cabecera modal -->
                             <div class="flex shrink-0 items-center justify-between border-b border-zinc-100 px-4 py-3 sm:px-6 dark:border-zinc-800">
@@ -547,7 +605,7 @@ onUnmounted(() => {
                                         {{ votedOk ? 'Cambiar mi voto' : '¿Por quién votarías hoy?' }}
                                     </h2>
                                     <p class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                                        {{ votedOk ? 'Selecciona tu nueva opción y guarda el cambio.' : 'Participación anónima · Una opción por dispositivo.' }}
+                                        {{ votedOk ? 'Solo cambios desde este dispositivo, con espera entre cambios.' : 'Una participación por dispositivo; no repitas voto desde otros equipos.' }}
                                     </p>
                                 </div>
                                 <button
@@ -578,8 +636,10 @@ onUnmounted(() => {
                                 </div>
                             </div>
 
-                            <!-- Buscador candidatos -->
-                            <div class="mx-4 mt-3 shrink-0 sm:mx-6">
+                            <!-- Buscador: sticky en móvil para que no quede tapado por el teclado al hacer scroll -->
+                            <div
+                                class="sticky top-0 z-20 mx-4 mt-2 shrink-0 border-b border-zinc-100 bg-white pb-2 pt-1 sm:static sm:z-0 sm:mx-6 sm:border-0 sm:bg-transparent sm:pb-0 sm:pt-0 dark:border-zinc-800 dark:bg-zinc-900 sm:dark:bg-transparent"
+                            >
                                 <label for="sondeo-buscar" class="sr-only">Buscar candidato o partido</label>
                                 <div class="relative">
                                     <svg class="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -592,7 +652,8 @@ onUnmounted(() => {
                                         enterkeyhint="search"
                                         autocomplete="off"
                                         placeholder="Buscar por nombre o partido…"
-                                        class="w-full rounded-xl border-2 border-zinc-200 bg-zinc-50 py-3 pl-10 pr-10 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-500/20 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-red-500"
+                                        class="w-full rounded-xl border-2 border-zinc-200 bg-zinc-50 py-3.5 pl-10 pr-10 text-base font-medium text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-500/20 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 sm:text-sm dark:placeholder:text-zinc-500 dark:focus:border-red-500"
+                                        @focus="onSearchFocus"
                                     />
                                     <button
                                         v-if="candidateSearch.trim()"
@@ -605,13 +666,14 @@ onUnmounted(() => {
                                     </button>
                                 </div>
                                 <p class="mt-1 text-[10px] text-zinc-500 dark:text-zinc-400">
-                                    Escribe parte del nombre del candidato o del partido.
+                                    En móvil, desplaza la lista hacia arriba si el teclado tapa los resultados.
                                 </p>
                             </div>
 
-                            <!-- Lista candidatos (scrollable) -->
+                            <!-- Lista candidatos (scrollable) + padding extra cuando hay teclado -->
                             <form
-                                class="flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-2 sm:px-6"
+                                class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-2 sm:px-6"
+                                :style="{ paddingBottom: modalKeyboardPad ? `${modalKeyboardPad}px` : undefined }"
                                 @submit.prevent="submitVote"
                             >
                                 <!-- Honeypot -->
@@ -647,25 +709,25 @@ onUnmounted(() => {
                                             class="sr-only"
                                         />
 
-                                        <!-- Avatar + logo -->
+                                        <!-- Avatar + logo (más grandes en móvil) -->
                                         <div class="relative shrink-0">
                                             <img
                                                 v-if="c.photo_url"
                                                 :src="c.photo_url"
                                                 :alt="c.name"
-                                                class="h-12 w-12 rounded-full border-2 object-cover object-top shadow-sm"
-                                                :class="selectedId === c.id ? 'border-red-400' : 'border-zinc-200 dark:border-zinc-600'"
+                                                class="h-[4.5rem] w-[4.5rem] rounded-full border-2 object-cover object-top shadow-md sm:h-14 sm:w-14"
+                                                :class="selectedId === c.id ? 'border-red-400 ring-2 ring-red-200' : 'border-zinc-200 dark:border-zinc-600'"
                                                 loading="lazy"
                                             />
                                             <span
                                                 v-else
-                                                class="flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-zinc-300 bg-zinc-100 text-xs font-bold text-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                                                class="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full border-2 border-dashed border-zinc-300 bg-zinc-100 text-sm font-bold text-zinc-500 sm:h-14 sm:w-14 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
                                             >{{ initials(c.name) }}</span>
                                             <img
                                                 v-if="c.party_logo_url"
                                                 :src="c.party_logo_url"
                                                 alt=""
-                                                class="absolute -right-1 -bottom-1 h-6 w-6 rounded-full border-2 border-white bg-white object-contain shadow dark:border-zinc-800 dark:bg-zinc-800"
+                                                class="absolute -right-0.5 -bottom-0.5 h-8 w-8 rounded-full border-2 border-white bg-white object-contain shadow-md sm:h-7 sm:w-7 dark:border-zinc-800 dark:bg-zinc-800"
                                                 loading="lazy"
                                             />
                                         </div>

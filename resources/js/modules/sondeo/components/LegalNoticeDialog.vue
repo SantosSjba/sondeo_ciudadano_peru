@@ -50,7 +50,7 @@ function close() {
                 class="relative z-10 w-full max-w-sm rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-600 dark:bg-zinc-900"
                 @click.stop
             >
-                <div class="flex max-h-[min(78vh,420px)] flex-col">
+                <div class="flex max-h-[min(85vh,480px)] flex-col">
                     <div class="flex shrink-0 items-start justify-between gap-2 border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
                         <h2 id="legal-notice-title" class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                             Sondeo ciudadano en línea (no oficial)
@@ -69,6 +69,12 @@ function close() {
                             Los resultados se basan solo en la participación voluntaria de quienes usan este sitio.
                             <strong class="text-zinc-800 dark:text-zinc-200">No constituyen encuesta científica ni intención de voto de toda la población</strong>,
                             ni tienen validez electoral. El objetivo es un indicador público del pulso entre participantes de internet.
+                        </p>
+                        <p class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/90 p-2.5 dark:border-emerald-900 dark:bg-emerald-950/40">
+                            <strong class="text-emerald-900 dark:text-emerald-100">Compromiso ciudadano (ética)</strong><br />
+                            Te pedimos <strong>no repetir votos</strong> desde otros dispositivos ni intentar falsear el sondeo: <strong>una participación por dispositivo/red</strong>.
+                            El sistema bloquea nuevos intentos si ya registramos tu participación, para que el termómetro refleje mejor la voluntad de quienes participan con honestidad.
+                            Gracias por cuidar la transparencia de esta herramienta.
                         </p>
                         <p class="mt-3 rounded-lg border border-sky-200 bg-sky-50/80 p-2.5 dark:border-sky-900 dark:bg-sky-950/40">
                             <strong class="text-zinc-800 dark:text-zinc-200">Información sobre candidatos</strong><br />
