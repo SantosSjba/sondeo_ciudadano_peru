@@ -1,43 +1,81 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { onMounted, onUnmounted, ref, computed } from 'vue';
-import SondeoDisclaimer from '@/modules/sondeo/components/SondeoDisclaimer.vue';
-import AdSlot from '@/modules/sondeo/components/AdSlot.vue';
-import VoteThermometer, {
-    type CandidateBar,
-} from '@/modules/sondeo/components/VoteThermometer.vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import LegalNoticeDialog from '@/modules/sondeo/components/LegalNoticeDialog.vue';
+import VoteThermometer, { type CandidateBar } from '@/modules/sondeo/components/VoteThermometer.vue';
+
+type Candidate = {
+    id: number;
+    name: string;
+    party_name: string | null;
+    short_label: string | null;
+    photo_url: string | null;
+    party_logo_url: string | null;
+};
 
 const props = defineProps<{
-    campaign: {
-        id: number;
-        slug: string;
-        title: string;
-        description: string | null;
-    } | null;
-    candidates: { id: number; name: string; short_label: string | null }[];
+    campaign: { id: number; slug: string; title: string; description: string | null } | null;
+    candidates: Candidate[];
 }>();
 
+/* ── estado ─────────────────────────────────────────────────────── */
 const pageLoadAt = ref(Date.now());
 const selectedId = ref<number | null>(null);
 const honeypot = ref('');
 const submitting = ref(false);
 const votedOk = ref(false);
+const lastSubmitAt = ref(0);
 const errorCode = ref<string | null>(null);
-const results = ref<{ candidates: CandidateBar[]; total: number }>({
-    candidates: [],
-    total: 0,
-});
+const showModal = ref(false);
+const candidateSearch = ref('');
+
+/** Alerta global (toast) para que el ciudadano siempre vea el mensaje */
+const alertBanner = ref<{
+    type: 'error' | 'warning' | 'info';
+    title: string;
+    message: string;
+} | null>(null);
+let alertAutoClose: ReturnType<typeof setTimeout> | null = null;
+
+function dismissAlert() {
+    if (alertAutoClose) {
+        clearTimeout(alertAutoClose);
+        alertAutoClose = null;
+    }
+    alertBanner.value = null;
+}
+
+function showAlertBanner(type: 'error' | 'warning' | 'info', title: string, message: string) {
+    dismissAlert();
+    alertBanner.value = { type, title, message };
+    alertAutoClose = setTimeout(() => {
+        alertBanner.value = null;
+        alertAutoClose = null;
+    }, 14000);
+}
+
+const results = ref<{ candidates: CandidateBar[]; total: number }>({ candidates: [], total: 0 });
 const resultsLoading = ref(true);
+const updatedAt = ref('');
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-const csrf = () =>
-    document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+/* ── helpers ─────────────────────────────────────────────────────── */
+function initials(name: string) {
+    return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+}
+function csrf() {
+    return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+}
 
+/* Bloquea scroll del body cuando el modal está abierto */
+watch(showModal, (v) => {
+    document.body.style.overflow = v ? 'hidden' : '';
+    if (v) candidateSearch.value = '';
+});
+
+/* ── API ─────────────────────────────────────────────────────────── */
 async function fetchResults() {
-    if (!props.campaign) {
-        resultsLoading.value = false;
-        return;
-    }
+    if (!props.campaign) { resultsLoading.value = false; return; }
     try {
         const r = await fetch(
             `/api/sondeo/results?campaign=${encodeURIComponent(props.campaign.slug)}`,
@@ -45,10 +83,8 @@ async function fetchResults() {
         );
         if (!r.ok) return;
         const data = await r.json();
-        results.value = {
-            candidates: data.candidates ?? [],
-            total: data.total ?? 0,
-        };
+        results.value = { candidates: data.candidates ?? [], total: data.total ?? 0 };
+        updatedAt.value = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     } finally {
         resultsLoading.value = false;
     }
@@ -58,7 +94,9 @@ async function submitVote() {
     if (!props.campaign || selectedId.value == null) return;
     errorCode.value = null;
     submitting.value = true;
-    const elapsed = Date.now() - pageLoadAt.value;
+    const elapsed = votedOk.value
+        ? Math.max(2000, Date.now() - lastSubmitAt.value)
+        : Date.now() - pageLoadAt.value;
     try {
         const r = await fetch('/api/sondeo/vote', {
             method: 'POST',
@@ -79,172 +117,526 @@ async function submitVote() {
         const data = await r.json().catch(() => ({}));
         if (r.ok && data.ok) {
             votedOk.value = true;
+            lastSubmitAt.value = Date.now();
+            showModal.value = false;
             await fetchResults();
         } else {
             errorCode.value = data.code ?? 'error';
+            const code = data.code ?? 'error';
+            const titles: Record<string, string> = {
+                legacy_no_change: 'No se puede cambiar el voto',
+                change_too_soon: 'Espera un momento',
+                already_voted: 'Participación registrada',
+                too_fast: 'Demasiado rápido',
+                invalid: 'Error al registrar',
+                invalid_candidate: 'Candidato no válido',
+                error: 'No se pudo completar',
+            };
+            const type: 'error' | 'warning' | 'info' =
+                code === 'legacy_no_change' ? 'warning'
+                : code === 'change_too_soon' || code === 'too_fast' ? 'info'
+                : 'error';
+            showAlertBanner(
+                type,
+                titles[code] ?? 'Aviso',
+                errorMessageForCode(code),
+            );
         }
     } finally {
         submitting.value = false;
     }
 }
 
-const errorMessage = computed(() => {
-    switch (errorCode.value) {
+function errorMessageForCode(code: string | null): string {
+    switch (code) {
         case 'already_voted':
-            return 'Ya registramos una participación desde este entorno. Solo se cuenta una por sondeo.';
+            return 'Ya registramos tu participación en este sondeo. Solo se cuenta una por dispositivo.';
+        case 'change_too_soon':
+            return 'Debes esperar unos segundos entre cada cambio de opción (protección anti-abuso). Vuelve a intentar en breve.';
+        case 'legacy_no_change':
+            return 'Tu participación se registró con una versión anterior del sitio y no permite cambiar el voto desde aquí. Gracias por haber participado.';
         case 'too_fast':
-            return 'Espera un momento y vuelve a intentar (protección anti-bots).';
+            return 'Espera unos segundos en la página antes de enviar (protección anti-bots).';
         case 'invalid':
-            return 'No se pudo validar el envío.';
         case 'invalid_candidate':
-            return 'Opción no válida.';
+            return 'No se pudo registrar tu voto. Recarga la página e intenta de nuevo.';
         default:
-            return errorCode.value ? 'No se pudo registrar. Intenta de nuevo.' : null;
+            return 'No se pudo registrar tu participación. Intenta de nuevo en unos momentos.';
     }
+}
+
+const errorMessage = computed(() => (errorCode.value ? errorMessageForCode(errorCode.value) : null));
+
+const selectedCandidate = computed(() => props.candidates.find((c) => c.id === selectedId.value) ?? null);
+
+/* Candidatos ordenados: seleccionado al inicio si ya votó */
+const sortedCandidates = computed(() => {
+    if (!votedOk.value || selectedId.value == null) return props.candidates;
+    return [
+        ...props.candidates.filter((c) => c.id === selectedId.value),
+        ...props.candidates.filter((c) => c.id !== selectedId.value),
+    ];
+});
+
+/** Búsqueda por nombre de candidato, partido o etiqueta corta */
+const filteredCandidates = computed(() => {
+    const q = candidateSearch.value.trim().toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+    if (!q) return sortedCandidates.value;
+    return sortedCandidates.value.filter((c) => {
+        const name = (c.name ?? '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+        const party = (c.party_name ?? '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+        const short = (c.short_label ?? '').toLowerCase();
+        return name.includes(q) || party.includes(q) || short.includes(q);
+    });
 });
 
 onMounted(() => {
     fetchResults();
-    pollTimer = setInterval(fetchResults, 12000);
+    pollTimer = setInterval(fetchResults, 10000);
 });
-
 onUnmounted(() => {
     if (pollTimer) clearInterval(pollTimer);
+    if (alertAutoClose) clearTimeout(alertAutoClose);
+    document.body.style.overflow = '';
 });
 </script>
 
 <template>
-    <Head :title="campaign?.title ?? 'Sondeo ciudadano'" />
+    <Head :title="campaign?.title ?? 'Sondeo ciudadano Perú'" />
 
-    <div
-        class="min-h-screen bg-gradient-to-b from-zinc-50 to-white text-zinc-900 dark:from-zinc-950 dark:to-zinc-900 dark:text-zinc-100"
-    >
-        <header
-            class="border-b border-zinc-200/80 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90"
+    <!-- Alerta global: siempre visible (encima del modal) -->
+    <Teleport to="body">
+        <Transition
+            enter-active-class="transition duration-300 ease-out"
+            enter-from-class="-translate-y-full opacity-0"
+            enter-to-class="translate-y-0 opacity-100"
+            leave-active-class="transition duration-200 ease-in"
+            leave-from-class="translate-y-0 opacity-100"
+            leave-to-class="-translate-y-full opacity-0"
         >
-            <div class="mx-auto flex max-w-3xl flex-col gap-2 px-4 py-6 sm:px-6">
-                <p class="text-xs font-medium tracking-wider text-red-700 uppercase dark:text-red-400">
-                    Perú · participación anónima
-                </p>
-                <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">
-                    {{ campaign?.title ?? 'Sondeo no disponible' }}
-                </h1>
-                <p
-                    v-if="campaign?.description"
-                    class="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
+            <div
+                v-if="alertBanner"
+                class="fixed left-0 right-0 top-0 z-[100] px-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4"
+                role="alert"
+                aria-live="assertive"
+            >
+                <div
+                    class="mx-auto flex max-w-lg gap-3 rounded-2xl border-2 p-4 shadow-2xl sm:max-w-xl"
+                    :class="{
+                        'border-red-300 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950/95 dark:text-red-100': alertBanner.type === 'error',
+                        'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/95 dark:text-amber-100': alertBanner.type === 'warning',
+                        'border-sky-300 bg-sky-50 text-sky-950 dark:border-sky-800 dark:bg-sky-950/95 dark:text-sky-100': alertBanner.type === 'info',
+                    }"
                 >
-                    {{ campaign.description }}
-                </p>
+                    <div class="shrink-0 pt-0.5" aria-hidden="true">
+                        <svg v-if="alertBanner.type === 'error'" class="size-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <svg v-else-if="alertBanner.type === 'warning'" class="size-8 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <svg v-else class="size-8 text-sky-600 dark:text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 18a9 9 0 110-18 9 9 0 010 18z"/>
+                        </svg>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-bold leading-tight sm:text-base">{{ alertBanner.title }}</p>
+                        <p class="mt-1.5 text-sm leading-snug opacity-95 sm:text-[15px]">{{ alertBanner.message }}</p>
+                    </div>
+                    <button
+                        type="button"
+                        class="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold underline decoration-2 underline-offset-2 hover:opacity-80"
+                        @click="dismissAlert"
+                    >
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </Transition>
+    </Teleport>
+
+    <div class="min-h-screen bg-gradient-to-b from-zinc-50 to-white text-zinc-900 dark:from-zinc-950 dark:to-zinc-900 dark:text-zinc-100">
+
+        <!-- ═══ HEADER ═══════════════════════════════════════════════════ -->
+        <header class="sticky top-0 z-30 border-b border-zinc-200/80 bg-white/95 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
+            <div class="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+                <!-- Logo / título -->
+                <div class="flex min-w-0 items-center gap-2 sm:gap-3">
+                    <span class="flex h-7 shrink-0 overflow-hidden rounded shadow-sm" aria-hidden="true">
+                        <span class="w-2.5 bg-red-600" /><span class="w-4 bg-white" /><span class="w-2.5 bg-red-600" />
+                    </span>
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-bold tracking-widest text-red-700 uppercase dark:text-red-400">
+                            Sondeo ciudadano · Perú 2026
+                        </p>
+                        <h1 class="truncate text-sm font-bold leading-tight text-zinc-900 dark:text-zinc-100 sm:text-base">
+                            {{ campaign?.title ?? 'Sondeo ciudadano' }}
+                        </h1>
+                    </div>
+                </div>
+
+                <!-- Acciones header -->
+                <div class="flex shrink-0 items-center gap-2">
+                    <LegalNoticeDialog v-if="campaign" />
+                    <!-- CTA principal header (md+) -->
+                    <button
+                        v-if="campaign"
+                        type="button"
+                        class="hidden rounded-lg px-4 py-2 text-sm font-semibold text-white shadow transition-colors sm:block"
+                        :class="votedOk
+                            ? 'bg-amber-600 hover:bg-amber-700'
+                            : 'bg-red-600 hover:bg-red-700'"
+                        @click="showModal = true"
+                    >
+                        {{ votedOk ? 'Cambiar voto' : '¡Participar!' }}
+                    </button>
+                </div>
             </div>
         </header>
 
-        <main class="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+        <!-- ═══ MAIN ══════════════════════════════════════════════════════ -->
+        <main class="mx-auto max-w-5xl px-4 pb-28 sm:px-6 sm:pb-16">
+
             <template v-if="!campaign">
-                <p class="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
-                    No hay un sondeo activo. Configura la campaña en base de datos y ejecuta el seeder.
-                </p>
+                <div class="mt-10 rounded-xl border border-zinc-200 bg-white p-8 text-center dark:border-zinc-700 dark:bg-zinc-900">
+                    <p class="text-zinc-500">No hay sondeo activo. Ejecuta las migraciones y el seeder.</p>
+                </div>
             </template>
 
             <template v-else>
-                <SondeoDisclaimer class="mb-8" />
 
-                <AdSlot slot-id="sondeo-top" class="mb-10" label="Publicidad (superior)" />
-
-                <div class="grid gap-10 lg:grid-cols-2 lg:gap-8">
-                    <section
-                        class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
-                    >
-                        <h2 class="mb-4 text-lg font-semibold">¿Por quién votarías hoy?</h2>
-                        <p class="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-                            Un voto anónimo por dispositivo/navegador en este sondeo. No pedimos datos
-                            personales.
+                <!-- ── Hero contador ───────────────────────────────────── -->
+                <div class="mt-5 mb-5 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <p class="text-2xl font-extrabold tabular-nums text-zinc-900 dark:text-zinc-100 sm:text-3xl">
+                            {{ resultsLoading ? '…' : results.total.toLocaleString('es-PE') }}
+                            <span class="text-base font-medium text-zinc-500"> participantes</span>
                         </p>
+                        <p class="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-400">
+                            <span class="inline-block size-2 animate-pulse rounded-full bg-emerald-500" aria-hidden="true" />
+                            <span>En tiempo real · {{ updatedAt || 'cargando…' }}</span>
+                        </p>
+                    </div>
 
-                        <form class="space-y-4" @submit.prevent="submitVote">
-                            <div
-                                class="absolute -left-[9999px] h-0 w-0 overflow-hidden opacity-0"
-                                aria-hidden="true"
-                            >
-                                <label>
-                                    Empresa
-                                    <input
-                                        v-model="honeypot"
-                                        type="text"
-                                        name="company"
-                                        tabindex="-1"
-                                        autocomplete="off"
-                                    />
-                                </label>
-                            </div>
-
-                            <fieldset :disabled="votedOk || submitting" class="space-y-2">
-                                <legend class="sr-only">Candidatos</legend>
-                                <label
-                                    v-for="c in candidates"
-                                    :key="c.id"
-                                    class="flex cursor-pointer items-center gap-3 rounded-lg border border-zinc-200 p-3 transition-colors has-[:checked]:border-red-400 has-[:checked]:bg-red-50/50 dark:border-zinc-600 dark:has-[:checked]:border-red-600 dark:has-[:checked]:bg-red-950/30"
-                                >
-                                    <input
-                                        v-model.number="selectedId"
-                                        type="radio"
-                                        name="candidate"
-                                        :value="c.id"
-                                        class="size-4 accent-red-600"
-                                    />
-                                    <span class="text-sm font-medium">{{ c.name }}</span>
-                                </label>
-                            </fieldset>
-
-                            <p
-                                v-if="errorMessage"
-                                class="text-sm text-red-600 dark:text-red-400"
-                                role="alert"
-                            >
-                                {{ errorMessage }}
-                            </p>
-                            <p
-                                v-if="votedOk"
-                                class="text-sm font-medium text-emerald-600 dark:text-emerald-400"
-                            >
-                                ¡Gracias! Tu participación quedó registrada de forma anónima.
-                            </p>
-
-                            <button
-                                type="submit"
-                                class="w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow hover:bg-red-700 disabled:opacity-50 sm:w-auto"
-                                :disabled="selectedId == null || votedOk || submitting"
-                            >
-                                {{ submitting ? 'Enviando…' : 'Enviar mi opinión' }}
-                            </button>
-                        </form>
-
-                        <SondeoDisclaimer compact class="mt-6" />
-                    </section>
-
-                    <section
-                        class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
-                    >
-                        <VoteThermometer
-                            :candidates="results.candidates"
-                            :total="results.total"
-                            :loading="resultsLoading"
-                        />
-                    </section>
+                    <!-- Chip de estado del usuario (desktop) -->
+                    <div v-if="votedOk && selectedCandidate" class="hidden items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 sm:flex dark:border-emerald-900 dark:bg-emerald-950/40">
+                        <div class="relative shrink-0">
+                            <img
+                                v-if="selectedCandidate.photo_url"
+                                :src="selectedCandidate.photo_url"
+                                :alt="selectedCandidate.name"
+                                class="h-9 w-9 rounded-full border border-zinc-200 object-cover dark:border-zinc-600"
+                            />
+                            <span v-else class="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-200 text-xs font-bold text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+                                {{ initials(selectedCandidate.name) }}
+                            </span>
+                            <img v-if="selectedCandidate.party_logo_url" :src="selectedCandidate.party_logo_url" alt="" class="absolute -right-0.5 -bottom-0.5 h-4 w-4 rounded-full border border-white bg-white object-contain dark:border-zinc-800" />
+                        </div>
+                        <div class="min-w-0">
+                            <p class="truncate text-xs font-semibold text-emerald-800 dark:text-emerald-200">Tu opción</p>
+                            <p class="max-w-[140px] truncate text-[10px] text-emerald-700 dark:text-emerald-300">{{ selectedCandidate.name.split(' ')[0] }} {{ selectedCandidate.name.split(' ')[1] }}</p>
+                        </div>
+                    </div>
                 </div>
 
-                <AdSlot slot-id="sondeo-footer" class="mt-10" label="Publicidad (pie)" />
+                <!-- ── Termómetro ──────────────────────────────────────── -->
+                <section
+                    class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6 dark:border-zinc-700 dark:bg-zinc-900"
+                    aria-label="Resultados en tiempo real"
+                >
+                    <VoteThermometer
+                        :candidates="results.candidates"
+                        :total="results.total"
+                        :loading="resultsLoading"
+                    />
+                </section>
 
-                <footer class="mt-12 border-t border-zinc-200 pt-8 text-center text-xs text-zinc-500 dark:border-zinc-800">
-                    <p>
-                        Transparencia: solo se almacenan totales por opción y una huella técnica
-                        anónima para evitar duplicados (no vendemos datos personales).
-                    </p>
-                    <p class="mt-2">
-                        Fases del producto: (1) voto + termómetro ✓ · (2) tendencias temporales ·
-                        (3) refuerzo anti-fraude · (4) reportes para medios.
-                    </p>
+                <!-- ── Footer ─────────────────────────────────────────── -->
+                <footer class="mt-8 border-t border-zinc-200 pt-6 text-[11px] leading-relaxed text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                    <div class="mx-auto max-w-2xl space-y-2 text-center">
+                        <p>
+                            Este sitio es un <strong class="text-zinc-700 dark:text-zinc-300">sondeo ciudadano en línea</strong>:
+                            participación voluntaria, resultados no oficiales y sin validez electoral. Datos mostrados en totales anónimos.
+                        </p>
+                        <p>Imágenes de candidatos y logos usados como referencia visual informativa; no vinculado a organismos electorales ni a campañas.</p>
+                        <p class="pt-1 font-medium text-zinc-600 dark:text-zinc-300">
+                            Desarrollado por
+                            <a href="https://factosysperu.com" target="_blank" rel="noopener noreferrer"
+                                class="text-red-700 underline decoration-red-300 underline-offset-2 hover:text-red-800 dark:text-red-400">factosysperu.com</a>
+                        </p>
+                    </div>
                 </footer>
             </template>
         </main>
+
+        <!-- ═══ CTA FLOTANTE MOBILE ═══════════════════════════════════════ -->
+        <div
+            v-if="campaign"
+            class="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-200 bg-white/95 px-4 py-3 shadow-2xl backdrop-blur sm:hidden dark:border-zinc-800 dark:bg-zinc-950/95"
+        >
+            <!-- chip candidato (si votó) -->
+            <div v-if="votedOk && selectedCandidate" class="mb-2 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 dark:border-emerald-900 dark:bg-emerald-950/40">
+                <div class="relative shrink-0">
+                    <img v-if="selectedCandidate.photo_url" :src="selectedCandidate.photo_url" alt="" class="h-7 w-7 rounded-full border border-zinc-200 object-cover" />
+                    <span v-else class="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-200 text-[9px] font-bold text-zinc-600">{{ initials(selectedCandidate.name) }}</span>
+                    <img v-if="selectedCandidate.party_logo_url" :src="selectedCandidate.party_logo_url" alt="" class="absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 rounded-full border border-white bg-white object-contain" />
+                </div>
+                <div class="min-w-0 flex-1">
+                    <p class="truncate text-[10px] font-semibold text-emerald-800 dark:text-emerald-200">
+                        Tu voto: {{ selectedCandidate.name.split(' ').slice(0, 2).join(' ') }}
+                    </p>
+                </div>
+                <svg class="size-4 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+
+            <button
+                type="button"
+                class="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-base font-bold text-white shadow-lg transition-colors active:scale-[0.98]"
+                :class="votedOk ? 'bg-amber-600 hover:bg-amber-700' : 'bg-red-600 hover:bg-red-700'"
+                @click="showModal = true"
+            >
+                <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path v-if="!votedOk" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                    <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                {{ votedOk ? 'Cambiar mi voto' : 'Participar en el sondeo' }}
+            </button>
+        </div>
+
+        <!-- ═══ MODAL DE VOTACIÓN ════════════════════════════════════════ -->
+        <Teleport to="body">
+            <Transition
+                enter-active-class="transition duration-200 ease-out"
+                enter-from-class="opacity-0"
+                enter-to-class="opacity-100"
+                leave-active-class="transition duration-150 ease-in"
+                leave-from-class="opacity-100"
+                leave-to-class="opacity-0"
+            >
+                <div
+                    v-if="showModal"
+                    class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+                    role="presentation"
+                >
+                    <!-- Backdrop -->
+                    <div
+                        class="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+                        aria-hidden="true"
+                        @click="showModal = false"
+                    />
+
+                    <!-- Hoja / diálogo -->
+                    <Transition
+                        enter-active-class="transition duration-300 ease-out"
+                        enter-from-class="translate-y-full sm:translate-y-0 sm:scale-95 sm:opacity-0"
+                        enter-to-class="translate-y-0 sm:scale-100 sm:opacity-100"
+                        leave-active-class="transition duration-200 ease-in"
+                        leave-from-class="translate-y-0 sm:scale-100 sm:opacity-100"
+                        leave-to-class="translate-y-full sm:translate-y-0 sm:scale-95 sm:opacity-0"
+                    >
+                        <div
+                            v-if="showModal"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="modal-title"
+                            class="relative z-10 flex max-h-[92dvh] w-full flex-col rounded-t-3xl border border-zinc-200 bg-white shadow-2xl sm:max-h-[90vh] sm:max-w-2xl sm:rounded-2xl dark:border-zinc-700 dark:bg-zinc-900"
+                            @click.stop
+                        >
+                            <!-- Handle mobile -->
+                            <div class="mx-auto mt-2.5 mb-1 h-1 w-10 rounded-full bg-zinc-300 sm:hidden dark:bg-zinc-600" aria-hidden="true" />
+
+                            <!-- Cabecera modal -->
+                            <div class="flex shrink-0 items-center justify-between border-b border-zinc-100 px-4 py-3 sm:px-6 dark:border-zinc-800">
+                                <div>
+                                    <h2 id="modal-title" class="text-base font-bold text-zinc-900 sm:text-lg dark:text-zinc-100">
+                                        {{ votedOk ? 'Cambiar mi voto' : '¿Por quién votarías hoy?' }}
+                                    </h2>
+                                    <p class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                                        {{ votedOk ? 'Selecciona tu nueva opción y guarda el cambio.' : 'Participación anónima · Una opción por dispositivo.' }}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="-mr-1 flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                                    aria-label="Cerrar"
+                                    @click="showModal = false"
+                                >
+                                    <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <!-- Banner "ya votaste" -->
+                            <div
+                                v-if="votedOk && selectedCandidate"
+                                class="mx-4 mt-3 flex shrink-0 items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 sm:mx-6 dark:border-emerald-900 dark:bg-emerald-950/40"
+                            >
+                                <svg class="size-5 shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+                                        Tu voto actual: <span class="font-bold">{{ selectedCandidate.name.split(' ').slice(0,2).join(' ') }}</span>
+                                    </p>
+                                    <p class="text-[10px] text-emerald-700/80 dark:text-emerald-300/80">Selecciona otro candidato para cambiar.</p>
+                                </div>
+                            </div>
+
+                            <!-- Buscador candidatos -->
+                            <div class="mx-4 mt-3 shrink-0 sm:mx-6">
+                                <label for="sondeo-buscar" class="sr-only">Buscar candidato o partido</label>
+                                <div class="relative">
+                                    <svg class="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                    </svg>
+                                    <input
+                                        id="sondeo-buscar"
+                                        v-model="candidateSearch"
+                                        type="search"
+                                        enterkeyhint="search"
+                                        autocomplete="off"
+                                        placeholder="Buscar por nombre o partido…"
+                                        class="w-full rounded-xl border-2 border-zinc-200 bg-zinc-50 py-3 pl-10 pr-10 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-500/20 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-red-500"
+                                    />
+                                    <button
+                                        v-if="candidateSearch.trim()"
+                                        type="button"
+                                        class="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                                        aria-label="Limpiar búsqueda"
+                                        @click="candidateSearch = ''"
+                                    >
+                                        <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                </div>
+                                <p class="mt-1 text-[10px] text-zinc-500 dark:text-zinc-400">
+                                    Escribe parte del nombre del candidato o del partido.
+                                </p>
+                            </div>
+
+                            <!-- Lista candidatos (scrollable) -->
+                            <form
+                                class="flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-2 sm:px-6"
+                                @submit.prevent="submitVote"
+                            >
+                                <!-- Honeypot -->
+                                <div class="absolute -left-[9999px] h-0 w-0 overflow-hidden" aria-hidden="true">
+                                    <input v-model="honeypot" type="text" name="company" tabindex="-1" autocomplete="off" />
+                                </div>
+
+                                <fieldset :disabled="submitting" class="grid grid-cols-1 gap-2 xs:grid-cols-2 sm:grid-cols-2">
+                                    <legend class="sr-only">Selecciona un candidato</legend>
+
+                                    <p
+                                        v-if="filteredCandidates.length === 0"
+                                        class="col-span-full rounded-xl border border-dashed border-zinc-300 bg-zinc-50 py-8 text-center text-sm text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800/50 dark:text-zinc-400"
+                                        role="status"
+                                    >
+                                        No hay candidatos que coincidan con «{{ candidateSearch.trim() }}». Prueba otro nombre o partido.
+                                    </p>
+
+                                    <label
+                                        v-for="c in filteredCandidates"
+                                        :key="c.id"
+                                        class="relative flex cursor-pointer items-center gap-3 rounded-2xl border p-3 transition-all duration-150 active:scale-[0.98]"
+                                        :class="selectedId === c.id
+                                            ? 'border-red-500 bg-red-50 shadow-sm ring-1 ring-red-500 dark:border-red-600 dark:bg-red-950/30'
+                                            : 'border-zinc-200 hover:border-red-300 hover:bg-red-50/30 dark:border-zinc-700 dark:hover:border-red-700 dark:hover:bg-red-950/10'"
+                                    >
+                                        <input
+                                            v-model.number="selectedId"
+                                            type="radio"
+                                            name="candidate"
+                                            :value="c.id"
+                                            class="sr-only"
+                                        />
+
+                                        <!-- Avatar + logo -->
+                                        <div class="relative shrink-0">
+                                            <img
+                                                v-if="c.photo_url"
+                                                :src="c.photo_url"
+                                                :alt="c.name"
+                                                class="h-12 w-12 rounded-full border-2 object-cover object-top shadow-sm"
+                                                :class="selectedId === c.id ? 'border-red-400' : 'border-zinc-200 dark:border-zinc-600'"
+                                                loading="lazy"
+                                            />
+                                            <span
+                                                v-else
+                                                class="flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-zinc-300 bg-zinc-100 text-xs font-bold text-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                                            >{{ initials(c.name) }}</span>
+                                            <img
+                                                v-if="c.party_logo_url"
+                                                :src="c.party_logo_url"
+                                                alt=""
+                                                class="absolute -right-1 -bottom-1 h-6 w-6 rounded-full border-2 border-white bg-white object-contain shadow dark:border-zinc-800 dark:bg-zinc-800"
+                                                loading="lazy"
+                                            />
+                                        </div>
+
+                                        <!-- Nombre + partido -->
+                                        <div class="min-w-0 flex-1">
+                                            <p class="line-clamp-2 text-[11px] font-semibold leading-tight text-zinc-800 dark:text-zinc-200">
+                                                {{ c.name }}
+                                            </p>
+                                            <p class="mt-0.5 line-clamp-1 text-[10px] leading-tight text-zinc-500 dark:text-zinc-400">
+                                                {{ c.party_name }}
+                                            </p>
+                                        </div>
+
+                                        <!-- Check seleccionado -->
+                                        <span
+                                            v-if="selectedId === c.id"
+                                            class="shrink-0 rounded-full bg-red-500 p-0.5"
+                                            aria-hidden="true"
+                                        >
+                                            <svg class="size-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                                            </svg>
+                                        </span>
+                                    </label>
+                                </fieldset>
+
+                                <!-- Refuerzo en modal (la alerta arriba es la principal) -->
+                                <p
+                                    v-if="errorMessage"
+                                    class="col-span-full mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
+                                    role="alert"
+                                >
+                                    {{ errorMessage }}
+                                </p>
+                            </form>
+
+                            <!-- Footer fijo modal -->
+                            <div class="shrink-0 border-t border-zinc-100 px-4 py-3 sm:px-6 dark:border-zinc-800">
+                                <button
+                                    type="button"
+                                    :disabled="selectedId == null || submitting"
+                                    class="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-base font-bold text-white shadow transition-colors active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                                    :class="votedOk ? 'bg-amber-600 hover:bg-amber-700' : 'bg-red-600 hover:bg-red-700'"
+                                    @click="submitVote"
+                                >
+                                    <svg v-if="submitting" class="size-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                    </svg>
+                                    {{
+                                        submitting ? 'Enviando…'
+                                        : selectedId == null ? 'Selecciona un candidato'
+                                        : votedOk ? 'Guardar cambio de voto'
+                                        : 'Enviar mi opinión'
+                                    }}
+                                </button>
+                                <p class="mt-2 text-center text-[10px] text-zinc-400">
+                                    Participación anónima · sin registro · sin datos personales
+                                </p>
+                            </div>
+                        </div>
+                    </Transition>
+                </div>
+            </Transition>
+        </Teleport>
     </div>
 </template>

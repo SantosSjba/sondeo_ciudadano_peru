@@ -55,6 +55,6 @@ Portada: `/` · Antigua bienvenida Laravel: `/welcome`.
 3. **Fraude** — Límites adicionales, scoring interno, auditoría de picos.  
 4. **Monetización B2B** — Reportes PDF/API para medios (sobre agregados únicamente).
 
-## Publicidad
+## Fotos y logos
 
-Sustituye los componentes `AdSlot` por tu red (Ad Manager, etc.) manteniendo la privacidad del voto.
+En `sondeo_candidates`: **`photo_url`** (foto perfil candidato) y **`party_logo_url`** (logo partido). Rutas públicas ej.: `/img/candidatos/nombre.jpg`.

@@ -4,6 +4,7 @@ namespace App\Application\Sondeo;
 
 use App\Domain\Sondeo\Contracts\VoteRepositoryInterface;
 use App\Models\SondeoCandidate;
+use Carbon\CarbonImmutable;
 use RuntimeException;
 
 final class CastVoteHandler
@@ -13,7 +14,7 @@ final class CastVoteHandler
     ) {}
 
     /**
-     * @throws RuntimeException mensaje clave para front (traducible)
+     * @throws RuntimeException mensaje clave para front
      */
     public function handle(CastVoteCommand $cmd): void
     {
@@ -21,7 +22,6 @@ final class CastVoteHandler
             throw new RuntimeException('invalid');
         }
 
-        // Bots suelen enviar al instante; humanos > ~2s
         if ($cmd->clientElapsedMs < 2000) {
             throw new RuntimeException('too_fast');
         }
@@ -33,6 +33,26 @@ final class CastVoteHandler
             ->first();
         if (! $candidate) {
             throw new RuntimeException('invalid_candidate');
+        }
+
+        $existing = $this->votes->findVoteRowByFingerprint($cmd->campaignId, $cmd->fingerprintHash);
+
+        if ($existing !== null) {
+            if ((int) $existing->candidate_id === $cmd->candidateId) {
+                return;
+            }
+            $cooldown = (int) config('sondeo.vote_change_cooldown_seconds', 45);
+            $last = CarbonImmutable::parse($existing->updated_at ?? $existing->created_at);
+            if ($last->addSeconds($cooldown)->isFuture()) {
+                throw new RuntimeException('change_too_soon');
+            }
+            $this->votes->updateParticipation($cmd->campaignId, $cmd->candidateId, $cmd->fingerprintHash);
+
+            return;
+        }
+
+        if ($this->votes->hasLegacyFingerprintOnly($cmd->campaignId, $cmd->fingerprintHash)) {
+            throw new RuntimeException('legacy_no_change');
         }
 
         if ($this->votes->hasParticipated($cmd->campaignId, $cmd->fingerprintHash)) {

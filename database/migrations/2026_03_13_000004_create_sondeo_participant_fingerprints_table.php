@@ -13,7 +13,8 @@ return new class extends Migration
             $table->foreignId('campaign_id')->constrained('sondeo_campaigns')->cascadeOnDelete();
             $table->char('fingerprint_hash', 64);
             $table->timestamps();
-            $table->unique(['campaign_id', 'fingerprint_hash']);
+            // Nombre corto: MySQL limita identificadores a 64 caracteres
+            $table->unique(['campaign_id', 'fingerprint_hash'], 'sondeo_fp_campaign_hash_uq');
         });
     }
 

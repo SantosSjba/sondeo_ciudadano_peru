@@ -44,7 +44,8 @@ final class SondeoVoteController extends Controller
         } catch (RuntimeException $e) {
             $code = $e->getMessage();
             $status = match ($code) {
-                'already_voted' => 409,
+                'already_voted', 'legacy_no_change' => 409,
+                'change_too_soon' => 429,
                 'too_fast', 'invalid', 'invalid_candidate' => 422,
                 default => 422,
             };

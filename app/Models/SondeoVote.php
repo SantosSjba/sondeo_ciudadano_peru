@@ -9,7 +9,7 @@ class SondeoVote extends Model
 {
     protected $table = 'sondeo_votes';
 
-    protected $fillable = ['campaign_id', 'candidate_id'];
+    protected $fillable = ['campaign_id', 'candidate_id', 'fingerprint_hash'];
 
     public function campaign(): BelongsTo
     {

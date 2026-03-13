@@ -11,7 +11,8 @@ class SondeoCandidate extends Model
     protected $table = 'sondeo_candidates';
 
     protected $fillable = [
-        'campaign_id', 'name', 'short_label', 'sort_order', 'is_active',
+        'campaign_id', 'name', 'party_name', 'short_label',
+        'photo_url', 'party_logo_url', 'sort_order', 'is_active',
     ];
 
     protected function casts(): array

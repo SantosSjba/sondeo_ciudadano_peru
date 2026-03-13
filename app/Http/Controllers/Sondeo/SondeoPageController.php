@@ -28,7 +28,7 @@ final class SondeoPageController extends Controller
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('id')
-            ->get(['id', 'name', 'short_label']);
+            ->get(['id', 'name', 'party_name', 'short_label', 'photo_url', 'party_logo_url']);
 
         return Inertia::render('sondeo/Sondeo', [
             'campaign' => [

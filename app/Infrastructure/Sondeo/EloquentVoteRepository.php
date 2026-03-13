@@ -13,15 +13,50 @@ final class EloquentVoteRepository implements VoteRepositoryInterface
     public function recordParticipation(int $campaignId, int $candidateId, string $fingerprintHash): void
     {
         DB::transaction(function () use ($campaignId, $candidateId, $fingerprintHash): void {
-            SondeoParticipantFingerprint::query()->create([
+            SondeoParticipantFingerprint::query()->firstOrCreate([
                 'campaign_id' => $campaignId,
                 'fingerprint_hash' => $fingerprintHash,
             ]);
             SondeoVote::query()->create([
                 'campaign_id' => $campaignId,
                 'candidate_id' => $candidateId,
+                'fingerprint_hash' => $fingerprintHash,
             ]);
         });
+    }
+
+    public function updateParticipation(int $campaignId, int $candidateId, string $fingerprintHash): void
+    {
+        SondeoVote::query()
+            ->where('campaign_id', $campaignId)
+            ->where('fingerprint_hash', $fingerprintHash)
+            ->update([
+                'candidate_id' => $candidateId,
+                'updated_at' => now(),
+            ]);
+    }
+
+    public function findVoteRowByFingerprint(int $campaignId, string $fingerprintHash): ?object
+    {
+        return SondeoVote::query()
+            ->where('campaign_id', $campaignId)
+            ->where('fingerprint_hash', $fingerprintHash)
+            ->first();
+    }
+
+    public function hasLegacyFingerprintOnly(int $campaignId, string $fingerprintHash): bool
+    {
+        $hasFp = SondeoParticipantFingerprint::query()
+            ->where('campaign_id', $campaignId)
+            ->where('fingerprint_hash', $fingerprintHash)
+            ->exists();
+
+        $hasRow = SondeoVote::query()
+            ->where('campaign_id', $campaignId)
+            ->where('fingerprint_hash', $fingerprintHash)
+            ->exists();
+
+        return $hasFp && ! $hasRow;
     }
 
     public function hasParticipated(int $campaignId, string $fingerprintHash): bool
@@ -53,9 +88,12 @@ final class EloquentVoteRepository implements VoteRepositoryInterface
             $votes = (int) ($counts[$c->id] ?? 0);
             $percent = $total > 0 ? round(100 * $votes / $total, 2) : 0.0;
             $out[] = [
-                'id' => $c->id,
+                'id' => (int) $c->id,
                 'name' => $c->name,
+                'party_name' => $c->party_name,
                 'short_label' => $c->short_label,
+                'photo_url' => $c->photo_url,
+                'party_logo_url' => $c->party_logo_url,
                 'votes' => $votes,
                 'percent' => $percent,
             ];
