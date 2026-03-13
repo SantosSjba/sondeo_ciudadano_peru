@@ -16,11 +16,13 @@ final class SondeoVoteController extends Controller
     public function __invoke(Request $request, CastVoteHandler $handler, ParticipantFingerprint $fingerprint): JsonResponse
     {
         $validated = $request->validate([
-            'candidate_id' => ['required', 'integer', 'min:1'],
-            'campaign_slug' => ['required', 'string', 'max:128'],
-            'company' => ['nullable', 'string'],
-            'website' => ['nullable', 'string'],
+            'candidate_id'      => ['required', 'integer', 'min:1'],
+            'campaign_slug'     => ['required', 'string', 'max:128'],
+            'company'           => ['nullable', 'string'],
+            'website'           => ['nullable', 'string'],
             'client_elapsed_ms' => ['required', 'integer', 'min:0', 'max:600000'],
+            'browser_fp'        => ['nullable', 'string', 'max:128'],
+            'interact_score'    => ['nullable', 'integer', 'min:0', 'max:200'],
         ]);
 
         $campaign = SondeoCampaign::query()
@@ -39,16 +41,18 @@ final class SondeoVoteController extends Controller
             isset($validated['company']) ? trim((string) $validated['company']) : null,
             isset($validated['website']) ? trim((string) $validated['website']) : null,
             (int) $validated['client_elapsed_ms'],
+            substr(trim((string) ($validated['browser_fp'] ?? '')), 0, 128),
+            (int) ($validated['interact_score'] ?? 0),
         );
 
         try {
-            $handler->handle($cmd);
+            $handler->handle($cmd, $request);
         } catch (RuntimeException $e) {
             $code = $e->getMessage();
             $status = match ($code) {
                 'already_voted', 'legacy_no_change' => 409,
                 'change_too_soon' => 429,
-                'too_fast', 'invalid', 'invalid_candidate', 'bot_ua', 'bot_origin' => 422,
+                'too_fast', 'invalid', 'invalid_candidate', 'bot_ua', 'bot_origin', 'bot_headers', 'ip_abuse' => 422,
                 default => 422,
             };
 

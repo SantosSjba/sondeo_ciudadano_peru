@@ -3,6 +3,7 @@ import { Head } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import LegalNoticeDialog from '@/modules/sondeo/components/LegalNoticeDialog.vue';
 import VoteThermometer, { type CandidateBar } from '@/modules/sondeo/components/VoteThermometer.vue';
+import { buildBrowserFingerprint, createInteractionTracker } from '@/utils/browserFingerprint';
 
 type Candidate = {
     id: number;
@@ -30,6 +31,8 @@ const pageLoadAt = ref(Date.now());
 const selectedId = ref<number | null>(null);
 const honeypot = ref('');
 const honeypot2 = ref('');
+const browserFp = ref('');
+const interactTracker = createInteractionTracker();
 const submitting = ref(false);
 /** Ya votó (persistido vía API por huella): recarga / otro día sigue viendo “Cambiar voto” */
 const votedOk = ref(false);
@@ -151,6 +154,8 @@ async function submitVote() {
                 company: honeypot.value,
                 website: honeypot2.value,
                 client_elapsed_ms: elapsed,
+                browser_fp: browserFp.value || '',
+                interact_score: interactTracker.score(),
             }),
         });
         const data = await r.json().catch(() => ({}));
@@ -172,6 +177,8 @@ async function submitVote() {
                 too_fast: 'Demasiado rápido',
                 bot_ua: 'Acceso no válido',
                 bot_origin: 'Acceso no válido',
+                bot_headers: 'Acceso no válido',
+                ip_abuse: 'Demasiados intentos',
                 invalid: 'Error al registrar',
                 invalid_candidate: 'Candidato no válido',
                 error: 'No se pudo completar',
@@ -203,7 +210,10 @@ function errorMessageForCode(code: string | null): string {
             return 'Espera al menos unos segundos en la página antes de enviar (protección anti-bots). En el primer voto suele pedir ~4 s.';
         case 'bot_ua':
         case 'bot_origin':
+        case 'bot_headers':
             return 'No se pudo validar el envío desde este entorno. Abre el sitio en el navegador (Chrome, Safari, etc.) y vuelve a intentar.';
+        case 'ip_abuse':
+            return 'Demasiados intentos desde tu red en poco tiempo. Espera unos minutos e inténtalo de nuevo.';
         case 'invalid':
         case 'invalid_candidate':
             return 'No se pudo registrar tu voto. Recarga la página e intenta de nuevo.';
@@ -240,10 +250,14 @@ const filteredCandidates = computed(() => {
 onMounted(() => {
     fetchResults();
     pollTimer = setInterval(fetchResults, 10000);
+    interactTracker.listen();
+    // Calcular la huella del navegador en segundo plano (no bloquea UI)
+    buildBrowserFingerprint().then(fp => { browserFp.value = fp; }).catch(() => {});
 });
 onUnmounted(() => {
     if (pollTimer) clearInterval(pollTimer);
     if (alertAutoClose) clearTimeout(alertAutoClose);
+    interactTracker.destroy();
     document.body.style.overflow = '';
 });
 </script>

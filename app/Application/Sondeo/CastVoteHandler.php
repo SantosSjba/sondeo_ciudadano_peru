@@ -3,21 +3,25 @@
 namespace App\Application\Sondeo;
 
 use App\Domain\Sondeo\Contracts\VoteRepositoryInterface;
+use App\Domain\Sondeo\Services\VoteAbuseDetector;
 use App\Models\SondeoCandidate;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Request;
 use RuntimeException;
 
 final class CastVoteHandler
 {
     public function __construct(
         private VoteRepositoryInterface $votes,
+        private VoteAbuseDetector $abuse,
     ) {}
 
     /**
      * @throws RuntimeException mensaje clave para front
      */
-    public function handle(CastVoteCommand $cmd): void
+    public function handle(CastVoteCommand $cmd, Request $request): void
     {
+        // Honeypots: bots suelen rellenar campos ocultos
         if ($cmd->honeypot !== null && $cmd->honeypot !== '') {
             throw new RuntimeException('invalid');
         }
@@ -35,8 +39,20 @@ final class CastVoteHandler
         }
 
         $existing = $this->votes->findVoteRowByFingerprint($cmd->campaignId, $cmd->fingerprintHash);
+        $isChange = $existing !== null;
 
-        $minMs = $existing !== null ? 2000 : 3500;
+        // Detector de abuso (interacción, huella, diversidad por IP, tiempo)
+        $this->abuse->check(
+            $request,
+            $cmd->fingerprintHash,
+            $cmd->browserFp,
+            $cmd->interactScore,
+            $cmd->clientElapsedMs,
+            $isChange,
+        );
+
+        // Tiempo mínimo (doble chequeo tras detector)
+        $minMs = $isChange ? 2000 : 3500;
         if ($cmd->clientElapsedMs < $minMs) {
             throw new RuntimeException('too_fast');
         }

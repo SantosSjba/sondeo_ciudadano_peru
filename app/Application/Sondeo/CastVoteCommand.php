@@ -11,5 +11,7 @@ final readonly class CastVoteCommand
         public ?string $honeypot,
         public ?string $honeypot2,
         public int $clientElapsedMs,
+        public string $browserFp = '',
+        public int $interactScore = 0,
     ) {}
 }

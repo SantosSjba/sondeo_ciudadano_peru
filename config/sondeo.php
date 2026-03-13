@@ -18,6 +18,23 @@ return [
     'results_throttle_per_minute' => (int) env('SONDEO_RESULTS_THROTTLE_PER_MINUTE', 90),
 
     /*
+    | Anti-abuso: máximo de intentos totales por IP en 1 hora (middleware).
+    */
+    'max_attempts_per_ip_per_hour' => (int) env('SONDEO_MAX_ATTEMPTS_PER_IP_PER_HOUR', 20),
+
+    /*
+    | Anti-granja: máximo de huellas de navegador distintas desde la misma IP en 1 hora.
+    | Si una IP envía muchas huellas distintas → VPN rotante o bot farm.
+    */
+    'max_browser_fp_per_ip_per_hour' => (int) env('SONDEO_MAX_BROWSER_FP_PER_IP_PER_HOUR', 8),
+
+    /*
+    | Interacción mínima requerida para el primer voto (mouse/touch/scroll acumulado).
+    | El tracker cliente envía un valor 0-100. Con 3 o más se considera humano.
+    */
+    'min_interact_score' => (int) env('SONDEO_MIN_INTERACT_SCORE', 3),
+
+    /*
     | Segundos mínimos entre cambios de voto (misma huella). Anti-bots / flood.
     */
     'vote_change_cooldown_seconds' => (int) env('SONDEO_VOTE_CHANGE_COOLDOWN_SECONDS', 45),
