@@ -31,7 +31,10 @@ const selectedId = ref<number | null>(null);
 const honeypot = ref('');
 const honeypot2 = ref('');
 const submitting = ref(false);
+/** Ya votó (persistido vía API por huella): recarga / otro día sigue viendo “Cambiar voto” */
 const votedOk = ref(false);
+/** Participó con esquema antiguo: sin cambio de voto */
+const legacyLocked = ref(false);
 const lastSubmitAt = ref(0);
 const errorCode = ref<string | null>(null);
 const showModal = ref(false);
@@ -93,6 +96,33 @@ async function fetchResults() {
         const data = await r.json();
         results.value = { candidates: data.candidates ?? [], total: data.total ?? 0 };
         updatedAt.value = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        // Misma huella que al votar: restaurar “ya participé” tras F5 o volver más tarde
+        const slug = props.campaign.slug;
+        const storageKey = `sondeo_voto_${slug}`;
+
+        if (data.legacy_locked) {
+            legacyLocked.value = true;
+            votedOk.value = false;
+            sessionStorage.removeItem(storageKey);
+        } else {
+            legacyLocked.value = false;
+            if (data.my_candidate_id != null && Number.isFinite(Number(data.my_candidate_id))) {
+                votedOk.value = true;
+                selectedId.value = Number(data.my_candidate_id);
+                lastSubmitAt.value = Date.now();
+                sessionStorage.setItem(storageKey, String(data.my_candidate_id));
+            } else {
+                const cached = sessionStorage.getItem(storageKey);
+                if (cached != null && Number.isFinite(Number(cached))) {
+                    votedOk.value = true;
+                    selectedId.value = Number(cached);
+                    lastSubmitAt.value = Date.now();
+                } else {
+                    votedOk.value = false;
+                }
+            }
+        }
     } finally {
         resultsLoading.value = false;
     }
@@ -127,6 +157,9 @@ async function submitVote() {
         if (r.ok && data.ok) {
             votedOk.value = true;
             lastSubmitAt.value = Date.now();
+            if (props.campaign && selectedId.value != null) {
+                sessionStorage.setItem(`sondeo_voto_${props.campaign.slug}`, String(selectedId.value));
+            }
             showModal.value = false;
             await fetchResults();
         } else {
@@ -309,8 +342,12 @@ onUnmounted(() => {
                 <div class="flex shrink-0 items-center gap-2">
                     <LegalNoticeDialog v-if="campaign" />
                     <!-- CTA principal header (md+) -->
+                    <span
+                        v-if="campaign && legacyLocked"
+                        class="hidden rounded-lg bg-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-600 sm:inline dark:bg-zinc-800 dark:text-zinc-400"
+                    >Ya participaste</span>
                     <button
-                        v-if="campaign"
+                        v-else-if="campaign"
                         type="button"
                         class="hidden rounded-lg px-4 py-2 text-sm font-semibold text-white shadow transition-colors sm:block"
                         :class="votedOk
@@ -364,7 +401,7 @@ onUnmounted(() => {
                         </div>
                         <div class="min-w-0">
                             <p class="truncate text-xs font-semibold text-emerald-800 dark:text-emerald-200">Tu opción</p>
-                            <p class="max-w-[140px] truncate text-[10px] text-emerald-700 dark:text-emerald-300">{{ selectedCandidate.name.split(' ')[0] }} {{ selectedCandidate.name.split(' ')[1] }}</p>
+                            <p class="max-w-[200px] text-[10px] leading-snug text-emerald-800 dark:text-emerald-200">{{ selectedCandidate.name }}</p>
                         </div>
                     </div>
                 </div>
@@ -389,6 +426,10 @@ onUnmounted(() => {
                             participación voluntaria, resultados no oficiales y sin validez electoral. Datos mostrados en totales anónimos.
                         </p>
                         <p>Imágenes de candidatos y logos usados como referencia visual informativa; no vinculado a organismos electorales ni a campañas.</p>
+                        <p>
+                            Información oficial sobre candidatos:
+                            <a href="https://votoinformado.jne.gob.pe/presidente-vicepresidentes" target="_blank" rel="noopener noreferrer" class="font-medium text-red-700 underline underline-offset-2 hover:text-red-800 dark:text-red-400">JNE — Voto informado (presidente y vicepresidentes)</a>.
+                        </p>
                         <p class="pt-1 font-medium text-zinc-600 dark:text-zinc-300">
                             Desarrollado por
                             <a href="https://factosysperu.com" target="_blank" rel="noopener noreferrer"
@@ -401,7 +442,7 @@ onUnmounted(() => {
 
         <!-- ═══ CTA FLOTANTE MOBILE ═══════════════════════════════════════ -->
         <div
-            v-if="campaign"
+            v-if="campaign && !legacyLocked"
             class="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-200 bg-white/95 px-4 py-3 shadow-2xl backdrop-blur sm:hidden dark:border-zinc-800 dark:bg-zinc-950/95"
         >
             <!-- chip candidato (si votó) -->
@@ -413,7 +454,7 @@ onUnmounted(() => {
                 </div>
                 <div class="min-w-0 flex-1">
                     <p class="truncate text-[10px] font-semibold text-emerald-800 dark:text-emerald-200">
-                        Tu voto: {{ selectedCandidate.name.split(' ').slice(0, 2).join(' ') }}
+                        Tu voto: {{ selectedCandidate.name }}
                     </p>
                 </div>
                 <svg class="size-4 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -435,6 +476,14 @@ onUnmounted(() => {
             </button>
         </div>
 
+        <!-- Barra legacy (solo móvil): ya votó con sistema antiguo -->
+        <div
+            v-if="campaign && legacyLocked"
+            class="fixed bottom-0 left-0 right-0 z-40 border-t border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs font-medium text-amber-900 sm:hidden dark:border-amber-900 dark:bg-amber-950/80 dark:text-amber-200"
+        >
+            Ya participaste antes en este dispositivo (registro anterior). No se puede cambiar el voto desde aquí. Gracias.
+        </div>
+
         <!-- ═══ MODAL DE VOTACIÓN ════════════════════════════════════════ -->
         <Teleport to="body">
             <Transition
@@ -446,7 +495,7 @@ onUnmounted(() => {
                 leave-to-class="opacity-0"
             >
                 <div
-                    v-if="showModal"
+                    v-if="showModal && !legacyLocked"
                     class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
                     role="presentation"
                 >
@@ -509,7 +558,7 @@ onUnmounted(() => {
                                 </svg>
                                 <div class="min-w-0 flex-1">
                                     <p class="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
-                                        Tu voto actual: <span class="font-bold">{{ selectedCandidate.name.split(' ').slice(0,2).join(' ') }}</span>
+                                        Tu voto actual: <span class="font-bold">{{ selectedCandidate.name }}</span>
                                     </p>
                                     <p class="text-[10px] text-emerald-700/80 dark:text-emerald-300/80">Selecciona otro candidato para cambiar.</p>
                                 </div>
@@ -609,10 +658,10 @@ onUnmounted(() => {
 
                                         <!-- Nombre + partido -->
                                         <div class="min-w-0 flex-1">
-                                            <p class="line-clamp-2 text-[11px] font-semibold leading-tight text-zinc-800 dark:text-zinc-200">
+                                            <p class="text-[11px] font-semibold leading-snug text-zinc-800 dark:text-zinc-200">
                                                 {{ c.name }}
                                             </p>
-                                            <p class="mt-0.5 line-clamp-1 text-[10px] leading-tight text-zinc-500 dark:text-zinc-400">
+                                            <p class="mt-1 line-clamp-2 text-[10px] leading-tight text-zinc-500 dark:text-zinc-400">
                                                 {{ c.party_name }}
                                             </p>
                                         </div>

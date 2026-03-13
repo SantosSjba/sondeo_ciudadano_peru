@@ -38,12 +38,6 @@ const dotColors = [
 function barGradient(i: number) { return barColors[i % barColors.length]; }
 function dotColor(i: number) { return dotColors[i % dotColors.length]; }
 
-function nameShort(name: string) {
-    const parts = name.split(' ').filter(Boolean);
-    if (parts.length <= 2) return name;
-    return `${parts[0]} ${parts[1]}`;
-}
-
 const medals = ['🥇', '🥈', '🥉'];
 </script>
 
@@ -94,8 +88,8 @@ const medals = ['🥇', '🥈', '🥉'];
             <li
                 v-for="(c, i) in candidates"
                 :key="c.id"
-                class="flex items-center gap-2.5 rounded-xl transition-colors"
-                :class="i < 3 ? 'bg-zinc-50/80 px-2 py-1 dark:bg-zinc-800/40' : ''"
+                class="flex items-start gap-2.5 rounded-xl transition-colors"
+                :class="i < 3 ? 'bg-zinc-50/80 px-2 py-1.5 dark:bg-zinc-800/40' : 'py-0.5'"
             >
                 <!-- Avatar + logo -->
                 <div class="relative shrink-0">
@@ -128,11 +122,11 @@ const medals = ['🥇', '🥈', '🥉'];
 
                 <!-- Barra + texto -->
                 <div class="min-w-0 flex-1">
-                    <div class="flex items-baseline justify-between gap-1">
+                    <div class="flex flex-wrap items-baseline justify-between gap-x-1 gap-y-0">
                         <span
-                            class="truncate text-[11px] font-semibold leading-tight"
+                            class="min-w-0 flex-1 text-[10px] font-semibold leading-snug text-balance sm:text-[11px]"
                             :class="i < 3 ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'"
-                        >{{ nameShort(c.name) }}</span>
+                        >{{ c.name }}</span>
                         <span class="shrink-0 tabular-nums text-[11px] font-bold"
                             :class="i === 0 ? 'text-red-600 dark:text-red-400' : 'text-zinc-500 dark:text-zinc-400'"
                         >{{ c.percent }}%</span>
