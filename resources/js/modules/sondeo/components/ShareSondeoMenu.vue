@@ -11,6 +11,7 @@ const props = defineProps<{
 const open = ref(false);
 const copied = ref(false);
 const rootRef = ref<HTMLElement | null>(null);
+const panelRef = ref<HTMLElement | null>(null);
 
 const shareText = computed(() => {
     const d = props.description?.trim();
@@ -122,7 +123,9 @@ async function tryNativeShare() {
 function onDocClick(e: MouseEvent) {
     if (!open.value || !rootRef.value) return;
     const t = e.target as Node;
-    if (!rootRef.value.contains(t)) close();
+    const inTrigger = rootRef.value.contains(t);
+    const inPanel = panelRef.value?.contains(t) ?? false;
+    if (!inTrigger && !inPanel) close();
 }
 
 function onKey(e: KeyboardEvent) {
@@ -150,110 +153,143 @@ function openChannel(c: (typeof channels.value)[0], e: Event) {
 
 <template>
     <div ref="rootRef" class="relative">
-        <!-- Misma escala que el CTA «Cambiar voto» del header: rounded-lg px-4 py-2 text-sm font-semibold shadow -->
+        <!-- Solo icono, sin ancho extra -->
         <button
             type="button"
-            class="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-900 shadow transition hover:border-violet-400 hover:bg-violet-100 active:scale-[0.98] dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-100 dark:hover:bg-violet-900/70 max-sm:aspect-square max-sm:min-w-[2.5rem] max-sm:px-0 sm:min-w-[11.5rem] sm:px-4"
-            aria-haspopup="true"
+            class="inline-flex size-9 items-center justify-center rounded-lg border border-violet-300 bg-violet-50 text-violet-800 shadow transition hover:border-violet-400 hover:bg-violet-100 active:scale-[0.97] dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-200 dark:hover:bg-violet-900/70 sm:size-10"
+            aria-haspopup="dialog"
             :aria-expanded="open"
             aria-label="Compartir sondeo"
+            title="Compartir"
             @click.stop="toggle"
         >
-            <svg class="size-[1.125rem] shrink-0 text-violet-700 dark:text-violet-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <svg class="size-[1.15rem] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
             </svg>
-            <span class="hidden sm:inline">Compartir</span>
         </button>
+    </div>
 
+    <!-- Centrado en pantalla (evita cortes en móvil / header con overflow) -->
+    <Teleport to="body">
         <Transition
             enter-active-class="transition duration-200 ease-out"
-            enter-from-class="opacity-0 scale-95 -translate-y-1"
-            enter-to-class="opacity-100 scale-100 translate-y-0"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
             leave-active-class="transition duration-150 ease-in"
-            leave-from-class="opacity-100 scale-100"
-            leave-to-class="opacity-0 scale-95"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
         >
             <div
                 v-show="open"
-                class="absolute right-0 top-full z-50 mt-2 w-[min(100vw-1.5rem,20rem)] origin-top-right rounded-2xl border border-zinc-200/90 bg-white p-3 shadow-xl ring-1 ring-black/5 dark:border-zinc-700 dark:bg-zinc-900 dark:ring-white/10 sm:w-[22rem] sm:p-4"
-                role="dialog"
-                aria-label="Opciones para compartir"
-                @click.stop
+                class="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-3 backdrop-blur-[2px] sm:p-6"
+                style="padding-top: max(0.75rem, env(safe-area-inset-top)); padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); padding-left: max(0.75rem, env(safe-area-inset-left)); padding-right: max(0.75rem, env(safe-area-inset-right));"
+                role="presentation"
+                aria-hidden="true"
+                @click.self="close"
             >
-                <p class="mb-3 border-b border-zinc-100 pb-2 text-center text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                    Compartir Voto Libre
-                </p>
-
-                <button
-                    v-if="typeof navigator !== 'undefined' && typeof navigator.share === 'function'"
-                    type="button"
-                    class="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 py-3 text-sm font-bold text-white shadow-md transition hover:from-violet-500 hover:to-fuchsia-500"
-                    @click="tryNativeShare()"
+                <Transition
+                    enter-active-class="transition duration-200 ease-out"
+                    enter-from-class="opacity-0 scale-[0.97] translate-y-2"
+                    enter-to-class="opacity-100 scale-100 translate-y-0"
+                    leave-active-class="transition duration-150 ease-in"
+                    leave-from-class="opacity-100 scale-100"
+                    leave-to-class="opacity-0 scale-[0.97]"
                 >
-                    <svg class="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0l-4-4m4 4V4"/>
-                    </svg>
-                    Compartir del sistema
-                </button>
-
-                <div class="grid grid-cols-3 gap-2 sm:gap-3">
-                    <template v-for="c in channels" :key="c.id">
-                        <a
-                            v-if="c.id !== 'tiktok'"
-                            :href="c.href"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="group flex flex-col items-center gap-1 rounded-xl border border-zinc-100 bg-zinc-50/80 p-2.5 text-center transition hover:border-zinc-200 hover:bg-white hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:bg-zinc-800"
-                            @click="openChannel(c, $event)"
-                        >
-                            <span
-                                class="flex h-11 w-11 items-center justify-center rounded-full text-white shadow-md transition group-active:scale-95 sm:h-12 sm:w-12"
-                                :class="c.bg"
+                    <div
+                        v-show="open"
+                        ref="panelRef"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Compartir Voto Libre"
+                        class="max-h-[min(85dvh,32rem)] w-full max-w-[20rem] overflow-y-auto overscroll-contain rounded-2xl border border-zinc-200/90 bg-white p-3 shadow-2xl ring-1 ring-black/10 dark:border-zinc-700 dark:bg-zinc-900 dark:ring-white/10 sm:max-w-[22rem] sm:p-4"
+                        @click.stop
+                    >
+                        <div class="mb-2 flex items-center justify-between border-b border-zinc-100 pb-2 dark:border-zinc-700">
+                            <p class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                                Compartir
+                            </p>
+                            <button
+                                type="button"
+                                class="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                                aria-label="Cerrar"
+                                @click="close"
                             >
-                                <svg class="size-5 sm:size-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                    <path :d="c.icon" />
-                                </svg>
-                            </span>
-                            <span class="max-w-full truncate text-[10px] font-bold leading-tight text-zinc-800 dark:text-zinc-100">{{ c.label }}</span>
-                            <span class="line-clamp-2 min-h-[1.25rem] text-[9px] leading-tight text-zinc-500 dark:text-zinc-400">{{ c.sub }}</span>
-                        </a>
+                                <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+
                         <button
-                            v-else
+                            v-if="typeof navigator !== 'undefined' && typeof navigator.share === 'function'"
                             type="button"
-                            class="group flex flex-col items-center gap-1 rounded-xl border border-zinc-100 bg-zinc-50/80 p-2.5 text-center transition hover:border-zinc-200 hover:bg-white hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:bg-zinc-800"
-                            @click="openChannel(c, $event)"
+                            class="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 py-2.5 text-sm font-bold text-white shadow-md transition hover:from-violet-500 hover:to-fuchsia-500"
+                            @click="tryNativeShare()"
                         >
-                            <span
-                                class="flex h-11 w-11 items-center justify-center rounded-full text-white shadow-md transition group-active:scale-95 sm:h-12 sm:w-12"
-                                :class="c.bg"
-                            >
-                                <svg class="size-5 sm:size-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                    <path :d="c.icon" />
-                                </svg>
-                            </span>
-                            <span class="max-w-full truncate text-[10px] font-bold text-zinc-800 dark:text-zinc-100">{{ c.label }}</span>
-                            <span class="text-[9px] text-zinc-500 dark:text-zinc-400">{{ c.sub }}</span>
+                            <svg class="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0l-4-4m4 4V4"/>
+                            </svg>
+                            Compartir del sistema
                         </button>
-                    </template>
-                </div>
 
-                <button
-                    type="button"
-                    class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 py-2.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
-                    @click="copyLink"
-                >
-                    <svg v-if="!copied" class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                    </svg>
-                    <svg v-else class="size-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                    </svg>
-                    {{ copied ? '¡Enlace copiado!' : 'Copiar enlace' }}
-                </button>
-                <p class="mt-2 text-center text-[10px] text-zinc-400 dark:text-zinc-500">
-                    {{ url.replace(/^https?:\/\//, '') }}
-                </p>
+                        <div class="grid grid-cols-3 gap-2">
+                            <template v-for="c in channels" :key="c.id">
+                                <a
+                                    v-if="c.id !== 'tiktok'"
+                                    :href="c.href"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="group flex flex-col items-center gap-1 rounded-xl border border-zinc-100 bg-zinc-50/80 p-2 text-center transition hover:border-zinc-200 hover:bg-white hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:bg-zinc-800"
+                                    @click="openChannel(c, $event)"
+                                >
+                                    <span
+                                        class="flex h-10 w-10 items-center justify-center rounded-full text-white shadow-md transition group-active:scale-95"
+                                        :class="c.bg"
+                                    >
+                                        <svg class="size-[1.15rem]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                            <path :d="c.icon" />
+                                        </svg>
+                                    </span>
+                                    <span class="max-w-full truncate text-[10px] font-bold leading-tight text-zinc-800 dark:text-zinc-100">{{ c.label }}</span>
+                                    <span class="line-clamp-2 min-h-[1.1rem] text-[8px] leading-tight text-zinc-500 dark:text-zinc-400">{{ c.sub }}</span>
+                                </a>
+                                <button
+                                    v-else
+                                    type="button"
+                                    class="group flex flex-col items-center gap-1 rounded-xl border border-zinc-100 bg-zinc-50/80 p-2 text-center transition hover:border-zinc-200 hover:bg-white hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:bg-zinc-800"
+                                    @click="openChannel(c, $event)"
+                                >
+                                    <span
+                                        class="flex h-10 w-10 items-center justify-center rounded-full text-white shadow-md transition group-active:scale-95"
+                                        :class="c.bg"
+                                    >
+                                        <svg class="size-[1.15rem]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                            <path :d="c.icon" />
+                                        </svg>
+                                    </span>
+                                    <span class="max-w-full truncate text-[10px] font-bold text-zinc-800 dark:text-zinc-100">{{ c.label }}</span>
+                                    <span class="text-[8px] text-zinc-500 dark:text-zinc-400">{{ c.sub }}</span>
+                                </button>
+                            </template>
+                        </div>
+
+                        <button
+                            type="button"
+                            class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                            @click="copyLink"
+                        >
+                            <svg v-if="!copied" class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                            <svg v-else class="size-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            {{ copied ? '¡Enlace copiado!' : 'Copiar enlace' }}
+                        </button>
+                        <p class="mt-2 break-all text-center text-[10px] text-zinc-400 dark:text-zinc-500">
+                            {{ url.replace(/^https?:\/\//, '') }}
+                        </p>
+                    </div>
+                </Transition>
             </div>
         </Transition>
-    </div>
+    </Teleport>
 </template>

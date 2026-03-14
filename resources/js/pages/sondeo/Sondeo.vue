@@ -404,13 +404,13 @@ onUnmounted(() => {
 
                 <!-- Acciones header -->
                 <div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                    <LegalNoticeDialog v-if="campaign" />
                     <ShareSondeoMenu
                         v-if="campaign"
                         :url="seo.canonical || 'https://votolibre.factosysperu.com/'"
                         :title="seo.title"
                         :description="seo.description"
                     />
-                    <LegalNoticeDialog v-if="campaign" />
                     <!-- CTA principal header (md+) -->
                     <span
                         v-if="campaign && legacyLocked"
