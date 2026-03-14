@@ -82,6 +82,8 @@ Favicon: bandera de Perú en `/favicon.svg`.
 
 **Termómetro:** el listado se ordena por **número de votos** (mayor arriba). Las medallas son el top 3 real.
 
+**Sugerencias:** tabla `sondeo_suggestions`. Ver últimas: `php artisan sondeo:suggestions --last=50`
+
 ## 6. Base de datos remota
 
 Si MySQL está en otro host, en `.env`: `DB_HOST=...` y en el panel MySQL permitir el usuario desde el servidor web si hace falta.

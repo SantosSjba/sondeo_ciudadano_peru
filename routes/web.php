@@ -3,6 +3,7 @@
 use App\Http\Controllers\Sondeo\SondeoPageController;
 use App\Http\Controllers\Sondeo\SondeoResultsController;
 use App\Http\Controllers\Sondeo\SondeoSitemapController;
+use App\Http\Controllers\Sondeo\SondeoSuggestionController;
 use App\Http\Controllers\Sondeo\SondeoVoteController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
@@ -23,6 +24,10 @@ Route::post('/api/sondeo/vote', SondeoVoteController::class)
         'sondeo.vote.security',
     ])
     ->name('sondeo.vote');
+
+Route::post('/api/sondeo/suggestion', SondeoSuggestionController::class)
+    ->middleware('throttle:'.(int) config('sondeo.suggestion_throttle_per_minute', 4).',1')
+    ->name('sondeo.suggestion');
 
 Route::inertia('/welcome', 'Welcome', [
     'canRegister' => Features::enabled(Features::registration()),

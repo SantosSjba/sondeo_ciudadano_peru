@@ -2,6 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import LegalNoticeDialog from '@/modules/sondeo/components/LegalNoticeDialog.vue';
+import SuggestionDialog from '@/modules/sondeo/components/SuggestionDialog.vue';
 import VoteThermometer, { type CandidateBar } from '@/modules/sondeo/components/VoteThermometer.vue';
 import { buildBrowserFingerprint, createInteractionTracker } from '@/utils/browserFingerprint';
 
@@ -403,6 +404,7 @@ onUnmounted(() => {
                 <!-- Acciones header -->
                 <div class="flex shrink-0 items-center gap-2">
                     <LegalNoticeDialog v-if="campaign" />
+                    <SuggestionDialog v-if="campaign" />
                     <!-- CTA principal header (md+) -->
                     <span
                         v-if="campaign && legacyLocked"

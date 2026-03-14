@@ -34,6 +34,8 @@ return [
     */
     'min_interact_score' => (int) env('SONDEO_MIN_INTERACT_SCORE', 3),
 
+    'suggestion_throttle_per_minute' => (int) env('SONDEO_SUGGESTION_THROTTLE_PER_MINUTE', 4),
+
     /*
     | Segundos mínimos entre cambios de voto (misma huella). Anti-bots / flood.
     */
