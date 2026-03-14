@@ -62,22 +62,22 @@ function close() {
 </script>
 
 <template>
-    <!-- FAB esquina superior derecha (fuera del header; no choca con la barra inferior) -->
+    <!-- FAB: solo icono móvil/tablet; pastilla + texto desde lg (1024px) -->
     <Teleport to="body">
         <button
             type="button"
-            class="fixed z-[36] flex items-center gap-0 rounded-full border border-violet-400/80 bg-white/95 p-1 text-violet-800 shadow-lg backdrop-blur-md transition hover:bg-violet-50 hover:shadow-xl active:scale-[0.98] dark:border-violet-600 dark:bg-zinc-900/95 dark:text-violet-200 dark:hover:bg-violet-950/80 sm:gap-2 sm:p-0 sm:py-2 sm:pl-2.5 sm:pr-3"
+            class="fixed z-[36] flex items-center gap-0 rounded-full border border-violet-400/80 bg-white/95 p-1 text-violet-800 shadow-lg backdrop-blur-md transition hover:bg-violet-50 hover:shadow-xl active:scale-[0.98] dark:border-violet-600 dark:bg-zinc-900/95 dark:text-violet-200 dark:hover:bg-violet-950/80 lg:gap-2 lg:p-0 lg:py-2 lg:pl-2.5 lg:pr-3"
             style="top: max(5.25rem, calc(env(safe-area-inset-top, 0px) + 4.25rem)); right: max(0.75rem, env(safe-area-inset-right, 0px));"
             aria-label="Enviar sugerencia de mejora"
             title="Sugerencias — ¿Tienes una idea? Cuéntanos"
             @click="open = true"
         >
-            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-600 text-white shadow-inner sm:h-9 sm:w-9 dark:bg-violet-500">
-                <svg class="size-[1.2rem] sm:size-[1.15rem]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-600 text-white shadow-inner lg:h-9 lg:w-9 dark:bg-violet-500">
+                <svg class="size-[1.2rem] lg:size-[1.15rem]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
                 </svg>
             </span>
-            <span class="hidden truncate pr-1 text-left text-xs font-bold sm:inline">
+            <span class="hidden truncate pr-1 text-left text-xs font-bold lg:inline">
                 Sugerencias
             </span>
         </button>
