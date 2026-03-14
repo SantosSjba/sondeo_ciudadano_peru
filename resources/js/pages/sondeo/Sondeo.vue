@@ -404,7 +404,6 @@ onUnmounted(() => {
                 <!-- Acciones header -->
                 <div class="flex shrink-0 items-center gap-2">
                     <LegalNoticeDialog v-if="campaign" />
-                    <SuggestionDialog v-if="campaign" />
                     <!-- CTA principal header (md+) -->
                     <span
                         v-if="campaign && legacyLocked"
@@ -808,5 +807,6 @@ onUnmounted(() => {
                 </div>
             </Transition>
         </Teleport>
+        <SuggestionDialog v-if="campaign" />
     </div>
 </template>
