@@ -2,6 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import LegalNoticeDialog from '@/modules/sondeo/components/LegalNoticeDialog.vue';
+import ShareSondeoMenu from '@/modules/sondeo/components/ShareSondeoMenu.vue';
 import SuggestionDialog from '@/modules/sondeo/components/SuggestionDialog.vue';
 import VoteThermometer, { type CandidateBar } from '@/modules/sondeo/components/VoteThermometer.vue';
 import { buildBrowserFingerprint, createInteractionTracker } from '@/utils/browserFingerprint';
@@ -402,7 +403,13 @@ onUnmounted(() => {
                 </div>
 
                 <!-- Acciones header -->
-                <div class="flex shrink-0 items-center gap-2">
+                <div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                    <ShareSondeoMenu
+                        v-if="campaign"
+                        :url="seo.canonical || 'https://votolibre.factosysperu.com/'"
+                        :title="seo.title"
+                        :description="seo.description"
+                    />
                     <LegalNoticeDialog v-if="campaign" />
                     <!-- CTA principal header (md+) -->
                     <span
