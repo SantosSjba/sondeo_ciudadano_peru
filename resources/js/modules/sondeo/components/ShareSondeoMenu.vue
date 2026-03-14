@@ -150,20 +150,19 @@ function openChannel(c: (typeof channels.value)[0], e: Event) {
 
 <template>
     <div ref="rootRef" class="relative">
+        <!-- Misma escala que el CTA «Cambiar voto» del header: rounded-lg px-4 py-2 text-sm font-semibold shadow -->
         <button
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-2.5 py-2 text-violet-800 shadow-sm transition hover:border-violet-300 hover:bg-violet-100 active:scale-[0.98] sm:gap-2 sm:px-3 dark:border-violet-900/60 dark:bg-violet-950/50 dark:text-violet-200 dark:hover:bg-violet-900/50"
+            class="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-900 shadow transition hover:border-violet-400 hover:bg-violet-100 active:scale-[0.98] dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-100 dark:hover:bg-violet-900/70 max-sm:aspect-square max-sm:min-w-[2.5rem] max-sm:px-0 sm:min-w-[11.5rem] sm:px-4"
             aria-haspopup="true"
             :aria-expanded="open"
             aria-label="Compartir sondeo"
             @click.stop="toggle"
         >
-            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white shadow-inner sm:h-9 sm:w-9 dark:bg-violet-500">
-                <svg class="size-4 sm:size-[1.1rem]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
-                </svg>
-            </span>
-            <span class="hidden text-xs font-bold sm:inline">Compartir</span>
+            <svg class="size-[1.125rem] shrink-0 text-violet-700 dark:text-violet-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+            </svg>
+            <span class="hidden sm:inline">Compartir</span>
         </button>
 
         <Transition
